@@ -7,10 +7,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-koch}
       POSTGRES_USER: ${POSTGRES_USER:-koch}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Passwort der App-Rolle koch_app (kein Superuser, damit Row Level Security greift)
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
     volumes:
       - koch-db-data:/var/lib/postgresql/data
-      # schema.sql wird NUR beim ersten Start (leeres Volume) automatisch eingespielt
+      # NUR beim ersten Start (leeres Volume): Schema einspielen, danach App-Rolle anlegen
       - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/02-app-rolle.sh:/docker-entrypoint-initdb.d/02-app-rolle.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-koch} -d ${POSTGRES_DB:-koch}"]
       interval: 5s
