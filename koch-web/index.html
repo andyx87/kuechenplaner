@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F4F1E8" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1A1D23" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Sapio" />
+
+    <!-- SEO: Platzhalter-Domain https://example.com durch die eigene Domain ersetzen (auch in robots.txt & sitemap.xml) -->
+    <title>Sapio – KI-Küchenassistent: Rezepte, Planung, Vorrat & Angebote</title>
+    <meta name="description" content="Sapio ist dein KI-Küchenassistent: Rezepte aus deinem Vorrat, smarte Wochenplanung, Einkaufsliste, aktuelle Angebote und ein Schritt-für-Schritt-Kochmodus. Direkt im Browser starten." />
+    <meta name="application-name" content="Sapio" />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Sapio" />
+    <link rel="canonical" href="https://example.com/" />
+
+    <!-- Open Graph (Facebook, WhatsApp, LinkedIn …) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sapio" />
+    <meta property="og:locale" content="de_DE" />
+    <meta property="og:title" content="Sapio – dein KI-Küchenassistent" />
+    <meta property="og:description" content="Rezepte aus deinem Vorrat, smarte Planung, Einkaufsliste, Angebote & geführter Kochmodus – mit KI. Direkt im Browser." />
+    <meta property="og:url" content="https://example.com/" />
+    <meta property="og:image" content="https://example.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Sapio – dein KI-Küchenassistent" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Sapio – dein KI-Küchenassistent" />
+    <meta name="twitter:description" content="Rezepte aus deinem Vorrat, smarte Planung, Einkaufsliste, Angebote & geführter Kochmodus – mit KI." />
+    <meta name="twitter:image" content="https://example.com/og-image.png" />
+
+    <!-- Strukturierte Daten für Google. JSON-LD ist ein Data-Block (wird nicht ausgeführt),
+         deshalb von script-src 'self' nicht betroffen – im Gegensatz zu echtem Skript. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Sapio",
+      "url": "https://example.com/",
+      "applicationCategory": "LifestyleApplication",
+      "operatingSystem": "Web, Android, iOS",
+      "description": "KI-Küchenassistent: Rezepte aus deinem Vorrat, Wochenplanung, Einkaufsliste, Angebote und Schritt-für-Schritt-Kochmodus.",
+      "inLanguage": "de-DE",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+    }
+    </script>
+    <!-- Theme-Frühsetzung als externe Datei: die CSP (nginx.conf) erlaubt nur script-src
+         'self' – ein Inline-Skript würde blockiert (S-4, AND-34). -->
+    <script src="/theme.js"></script>
+    <style>
+      #splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #F7F1E8; transition: opacity .45s ease; }
+      #splash .sp-tile { width: 92px; height: 92px; border-radius: 24px; display: flex; align-items: center; justify-content: center; background: radial-gradient(120% 120% at 30% 15%, #262a32, #13151a); box-shadow: 0 20px 44px -18px rgba(0,0,0,.5), inset 0 0 0 1px rgba(227,168,106,.18); }
+      #splash .sp-word { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-weight: 800; font-size: clamp(2rem, 11vw, 3rem); letter-spacing: -0.02em; color: #C8823C; }
+      #splash.sp-hide { opacity: 0; pointer-events: none; }
+      :root[data-theme="dunkel"] #splash { background: #101116; }
+      :root[data-theme="dunkel"] #splash .sp-word { color: #E3A86A; }
+    </style>
+  </head>
+  <body>
+    <div id="splash">
+      <div class="sp-tile">
+        <svg width="58" height="58" viewBox="0 0 120 120" fill="none">
+          <g stroke="#7bc492" stroke-width="1.6" opacity=".7" stroke-linecap="round"><path d="M16 96h12M92 96h12M22 96v-8M98 96v-8"/><circle cx="22" cy="86" r="2.4" fill="#7bc492" stroke="none"/><circle cx="98" cy="86" r="2.4" fill="#7bc492" stroke="none"/></g>
+          <path d="M28 86a32 32 0 0 1 64 0" stroke="#e3a86a" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="60" cy="48" r="4.5" fill="#e3a86a"/><path d="M60 52v6" stroke="#e3a86a" stroke-width="4" stroke-linecap="round"/>
+          <path d="M52 70c8-11 16-11 24 0" stroke="#7bc492" stroke-width="4.5" stroke-linecap="round"/>
+          <rect x="24" y="86" width="72" height="6" rx="3" fill="#e3a86a"/>
+        </svg>
+      </div>
+      <span class="sp-word">Sapio</span>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

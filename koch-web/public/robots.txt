@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Platzhalter-Domain (durch die eigene ersetzen)
+Sitemap: https://example.com/sitemap.xml

@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: koch-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-koch}
+      POSTGRES_USER: ${POSTGRES_USER:-koch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - koch-db-data:/var/lib/postgresql/data
+      # schema.sql wird NUR beim ersten Start (leeres Volume) automatisch eingespielt
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-koch} -d ${POSTGRES_DB:-koch}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  koch-mcp:
+    build: .
+    container_name: koch-mcp
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8095:8093" 
+
+  koch-web:
+    build: ./koch-web
+    container_name: koch-web
+    restart: unless-stopped
+    depends_on:
+      - koch-mcp
+    ports:
+      - "8096:80" 
+
+volumes:
+  koch-db-data:

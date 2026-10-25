@@ -1,0 +1,300 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Android 15+/16 Edge-to-Edge (Capacitor 8 passt keine Margins mehr automatisch an):
+   Statischer Seitenfluss hält den Statusleisten-/Notch-Bereich frei. Auf Web/PWA ist
+   env(safe-area-inset-top) = 0px, dort ändert sich nichts. Vollflächige Overlays mit
+   eigenem Header (GuidedCooking, AdminPanel) setzen denselben Abstand selbst. */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Marke „Sapio" – Charcoal + Kupfer/Bronze + Grün-Akzent, Gold als Highlight.
+   --terracotta = Kupfer (Hauptakzent), --olive = Marken-Grün, --akzent = Neon-Grün. */
+/* Token-System: Ein Akzent (Kupfer), Grün NUR als „im Vorrat"-Signal.
+   Beide Themes final aus den Redesign-Paketen (Dark- & Hell-Paket). */
+:root {
+  color-scheme: light;
+  --paper: #F7F1E8;          /* warmes Creme (Seiten-/Screen-BG) */
+  --ink: #2A2018;            /* warmes Tintenschwarz (Haupttext) */
+  --terracotta: #C8823C;     /* Kupfer (Akzent, kräftig für Kontrast auf Hell) */
+  --terracotta-deep: #C8823C;/* Unterkante Button-Verlauf */
+  --accent-top: #D99A55;     /* Oberkante Button-Verlauf */
+  --on-accent: #FFFFFF;      /* Text AUF Kupfer/Grün-Flächen (Hell = weiß) */
+  --olive: #3F9D63;          /* Grün („im Vorrat", dunkler/lesbar auf Hell) */
+  --butter: #E0AC5C;         /* Gold-Highlight */
+  --akzent: #3F9D63;         /* Grün (aktiv/vorhanden) */
+  --card: #FFFFFF;
+  --card2: #F1E9DD;          /* zweite Oberfläche */
+  --surface: rgba(40, 30, 15, 0.05);
+  --line: rgba(40, 30, 15, 0.10);
+  --muted: #6F6657;          /* Sekundärtext */
+  --muted2: #9C9384;         /* Tertiär/Mono-Meta */
+}
+
+:root[data-theme="dunkel"] {
+  color-scheme: dark;
+  --paper: #101116;          /* Seiten-Hintergrund (Redesign) */
+  --ink: #F3EFE7;            /* Primärtext */
+  --terracotta: #E3A86A;     /* Kupfer (einziger Akzent) */
+  --terracotta-deep: #D4914F;/* Unterkante Button-Verlauf */
+  --accent-top: #ECC08A;     /* Oberkante Button-Verlauf */
+  --on-accent: #241A0F;      /* dunkles Braun – Text AUF Kupfer */
+  --olive: #7BC492;          /* Grün („im Vorrat") */
+  --butter: #ECC08A;         /* warmes Kupfer-Gold */
+  --akzent: #7BC492;         /* Grün (aktiv/vorhanden) */
+  --card: #191D26;           /* Rezept-/Standard-Karte */
+  --card2: #1D2230;          /* gefüllte Tage / zweite Oberfläche */
+  --surface: rgba(255, 255, 255, 0.04);
+  --line: rgba(255, 255, 255, 0.07);
+  --muted: #9AA0AA;          /* Fließtext sekundär */
+  --muted2: #8A909A;         /* Meta / Mono / tertiär */
+}
+:root[data-theme="dunkel"] body::before { opacity: 0.06; }
+
+html, body, #root { height: 100%; }
+
+/* iOS Safari: keine automatische Textvergrößerung (Seite wirkt sonst „reingezoomt"),
+   und kein horizontaler Überlauf (sonst muss man rauszoomen). */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* Nur auf Geräten mit echter Maus (Desktop): Scrollbalken-Platz reservieren, damit
+   die Header-Icons zwischen scrollenden/nicht-scrollenden Seiten nicht springen.
+   Auf Touch (pointer: coarse) NICHT – dort nutzt der Browser Overlay-Scrollbars
+   (kein Platzverbrauch), eine erzwungene Scrollbar würde sonst das „Balken-Springen"
+   verursachen. */
+@media (pointer: fine) {
+  html { scrollbar-gutter: stable; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(43,34,24,0.18); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
+  :root[data-theme="dunkel"] ::-webkit-scrollbar-thumb { background: rgba(236, 228, 214, 0.18); }
+}
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+/* iOS zoomt beim Fokus in Felder mit <16px Schrift hinein → auf Touch-Geräten 16px. */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px; }
+}
+
+body {
+  margin: 0;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(1100px 560px at 82% -12%, rgba(224, 172, 92, 0.12), transparent 60%),
+    radial-gradient(820px 480px at -12% 112%, rgba(54, 190, 128, 0.10), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* feine Körnung für Atmosphäre */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Allgemeine UI-Überschriften (Sans, „Verstand") */
+.font-display { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.015em; }
+
+/* Eingebettete IT-Recht-HTML-Rechtstexte: Grund-Typografie (Tailwind-Preflight setzt
+   Listen/Überschriften sonst zurück). */
+.rechtstext-html h1, .rechtstext-html h2, .rechtstext-html h3, .rechtstext-html h4 {
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-weight: 700; color: var(--ink);
+  margin: 1.2em 0 .4em; line-height: 1.25;
+}
+.rechtstext-html h1 { font-size: 1.4rem } .rechtstext-html h2 { font-size: 1.18rem }
+.rechtstext-html h3 { font-size: 1.05rem } .rechtstext-html h4 { font-size: 1rem }
+.rechtstext-html p { margin: .6em 0 }
+.rechtstext-html ul, .rechtstext-html ol { margin: .6em 0 .6em 1.3em; list-style: revert }
+.rechtstext-html li { margin: .25em 0 }
+.rechtstext-html a { color: var(--terracotta); text-decoration: underline; word-break: break-word }
+.rechtstext-html b, .rechtstext-html strong { color: var(--ink) }
+.rechtstext-html table { width: 100%; border-collapse: collapse; margin: .6em 0 }
+.rechtstext-html td, .rechtstext-html th { border: 1px solid var(--line); padding: .4em .6em; text-align: left }
+
+/* Gerichtsnamen / große redaktionelle Aussagen (Serif, „Genuss") */
+.font-dish { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: 0; line-height: 1.1; }
+
+/* Sapio-Wortmarke: Plus Jakarta 800 mit Kupfer-Verlauf */
+.sapio-wortmarke {
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+  background: linear-gradient(180deg, var(--accent-top), var(--terracotta));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Mono-Label für Kennzahlen/Status (uppercase, weit gesperrt) */
+.label-mono {
+  font-family: "Space Mono", ui-monospace, monospace;
+  text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.66rem;
+}
+
+/* Primär-Aktion: Kupfer-Verlauf + dunkler Text + Glow (Referenz aus dem Redesign) */
+.btn-accent {
+  background: linear-gradient(180deg, var(--accent-top), var(--terracotta-deep));
+  color: var(--on-accent);
+  box-shadow: 0 10px 26px -10px rgba(227, 168, 106, 0.6);
+}
+.btn-accent:hover { filter: brightness(1.05); }
+
+/* Logo: helle Variante im Hell-Modus, dunkle im Dunkel-Modus (auto via data-theme) */
+.logo-light { display: inline-block; }
+.logo-dark { display: none; }
+:root[data-theme="dunkel"] .logo-light { display: none; }
+:root[data-theme="dunkel"] .logo-dark { display: inline-block; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* Hero-Karte (Start/Planen): warmer Verlauf + Kupfer-Border + pulsierender Glow */
+.hero-card {
+  position: relative; overflow: hidden;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--terracotta) 14%, var(--card)), var(--card) 62%);
+  border: 1px solid color-mix(in srgb, var(--terracotta) 28%, transparent);
+}
+.hero-card > .hero-glow {
+  position: absolute; right: -40px; top: -50px; width: 170px; height: 170px; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--terracotta) 30%, transparent), transparent 70%);
+  animation: sapioGlow 5s ease-in-out infinite;
+}
+@keyframes sapioGlow { 0%,100% { opacity:.55 } 50% { opacity:.9 } }
+
+/* ===== Login (Split-Screen) ===== */
+.login-brand {
+  position: relative; overflow: hidden;
+  background: radial-gradient(100% 90% at 25% 18%, color-mix(in srgb, var(--terracotta) 8%, var(--card)), var(--paper) 72%);
+}
+.login-brand-raster {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(125deg, color-mix(in srgb, var(--terracotta) 6%, transparent) 0 1px, transparent 1px 30px),
+    repeating-linear-gradient(35deg, color-mix(in srgb, var(--olive) 5%, transparent) 0 1px, transparent 1px 40px);
+}
+.login-glow {
+  position: absolute; width: 460px; height: 460px; left: 8%; top: 14%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--terracotta) 20%, transparent), transparent 66%);
+  animation: sapioGlow 6s ease-in-out infinite;
+}
+/* Emblem-Kachel bleibt in BEIDEN Themes dunkel (wie ein App-Icon) */
+.login-emblem {
+  background: radial-gradient(120% 120% at 30% 15%, #262a32, #13151a);
+  box-shadow: 0 22px 44px -18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(227,168,106,.18);
+}
+
+/* gestaffelte Karten beim Laden */
+.stagger > * { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(n+7) { animation-delay: 0.26s; }
+
+/* Unbestimmter Ladebalken (z.B. KI-Generierung) */
+@keyframes ladebalken {
+  0%   { left: -45%; width: 45%; }
+  50%  { width: 65%; }
+  100% { left: 100%; width: 45%; }
+}
+.ladebalken-track { position: relative; overflow: hidden; }
+.ladebalken-bar { position: absolute; top: 0; bottom: 0; border-radius: 9999px; animation: ladebalken 1.15s ease-in-out infinite; }
+
+/* ===================== Guided Cooking ===================== */
+/* Atmosphärischer Verlauf hinter dem Vollbild-Kochmodus */
+.gc-bg {
+  background:
+    radial-gradient(900px 480px at 85% -10%, rgba(208,138,69,0.16), transparent 60%),
+    radial-gradient(720px 440px at -10% 112%, rgba(43,182,115,0.13), transparent 60%),
+    var(--paper);
+}
+
+/* Fortschrittsbalken (Kupfer → Gold → Grün, sanft schimmernd) */
+.gc-progress {
+  background: linear-gradient(90deg, var(--terracotta), var(--butter), var(--akzent));
+  background-size: 200% 100%;
+  animation: gc-shimmer 2.6s linear infinite;
+  transition: width .55s cubic-bezier(.2,.7,.2,1);
+}
+@keyframes gc-shimmer { from { background-position: 0 0 } to { background-position: -200% 0 } }
+
+/* Richtungs-Übergänge zwischen Schritten */
+@keyframes gc-in-next { from { opacity:0; transform: translateX(36px) } to { opacity:1; transform:none } }
+@keyframes gc-in-prev { from { opacity:0; transform: translateX(-36px) } to { opacity:1; transform:none } }
+.gc-next { animation: gc-in-next .44s cubic-bezier(.2,.7,.2,1) both }
+.gc-prev { animation: gc-in-prev .44s cubic-bezier(.2,.7,.2,1) both }
+
+/* Gestaffeltes Auftauchen der Schritt-Elemente */
+@keyframes gc-rise { from { opacity:0; transform: translateY(16px) } to { opacity:1; transform:none } }
+.gc-stagger > * { animation: gc-rise .5s cubic-bezier(.2,.7,.2,1) both }
+.gc-stagger > *:nth-child(1){ animation-delay:.06s }
+.gc-stagger > *:nth-child(2){ animation-delay:.13s }
+.gc-stagger > *:nth-child(3){ animation-delay:.20s }
+.gc-stagger > *:nth-child(4){ animation-delay:.27s }
+.gc-stagger > *:nth-child(n+5){ animation-delay:.34s }
+
+/* Pop (Schritt-Badge, „Fertig") */
+@keyframes gc-pop { 0%{opacity:0;transform:scale(.55)} 60%{transform:scale(1.1)} 100%{opacity:1;transform:scale(1)} }
+.gc-pop { animation: gc-pop .55s cubic-bezier(.2,.8,.2,1) both }
+
+/* Sanftes Pulsieren (KI denkt) */
+@keyframes gc-pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.gc-pulse { animation: gc-pulse 1.5s ease-in-out infinite }
+
+/* Ring-Puls für laufenden Timer */
+@keyframes gc-ring { 0%{box-shadow:0 0 0 0 rgba(43,182,115,.5)} 70%{box-shadow:0 0 0 12px rgba(43,182,115,0)} 100%{box-shadow:0 0 0 0 rgba(43,182,115,0)} }
+.gc-ring { animation: gc-ring 2s ease-out infinite }
+
+/* Vorbereitungs-Dots */
+@keyframes gc-bounce { 0%,80%,100%{transform:scale(.5);opacity:.35} 40%{transform:scale(1);opacity:1} }
+.gc-dot { animation: gc-bounce 1.25s infinite ease-in-out both }
+
+/* Dampf über der Kochmütze beim Vorbereiten */
+@keyframes gc-steam { 0%{opacity:0; transform: translateY(6px) scaleY(.7)} 35%{opacity:.65} 100%{opacity:0; transform: translateY(-16px) scaleY(1.25)} }
+.gc-steam span { animation: gc-steam 2.4s ease-in-out infinite }
+
+/* Konfetti beim Abschluss */
+@keyframes gc-fall { 0%{transform:translate3d(0,-12vh,0) rotate(0);opacity:1} 100%{transform:translate3d(var(--dx,0),112vh,0) rotate(900deg);opacity:.85} }
+.gc-confetti i { position:absolute; top:0; width:9px; height:15px; border-radius:2px; animation: gc-fall linear forwards }
+
+/* Stern-Pop bei Bewertung */
+@keyframes gc-starpop { 0%{transform:scale(1)} 45%{transform:scale(1.4)} 100%{transform:scale(1)} }
+.gc-starpop { animation: gc-starpop .4s ease-out }
+
+/* Sanftes Schweben (Hero-Badge / Deko) */
+@keyframes gc-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-9px)} }
+.gc-float { animation: gc-float 4.5s ease-in-out infinite }
+
+/* Pulsierendes Glühen um das Schritt-Badge */
+@keyframes gc-glow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(176,110,51,.35), 0 8px 26px -8px rgba(176,110,51,0) }
+  50%     { box-shadow: 0 0 0 10px rgba(176,110,51,0), 0 10px 34px -6px rgba(176,110,51,.45) }
+}
+.gc-glow { animation: gc-glow 2.8s ease-in-out infinite }
+
+/* Riesige Deko-Schrittnummer: sanft reinskalieren + minimal schweben (Opacity via Klasse) */
+@keyframes gc-ghost { from{transform:scale(.9)} to{transform:scale(1)} }
+.gc-ghost { animation: gc-ghost .6s cubic-bezier(.2,.7,.2,1) both, gc-float 6s ease-in-out infinite .6s }
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-progress,.gc-next,.gc-prev,.gc-stagger>*,.gc-pop,.gc-pulse,.gc-ring,.gc-dot,
+  .gc-steam span,.gc-confetti i,.gc-starpop,.gc-float,.gc-glow,.gc-ghost,
+  .hero-card>.hero-glow,.login-glow,
+  .rise,.stagger>*,.ladebalken-bar {
+    animation: none !important; transition: none !important;
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "appId": "com.sapio_kitchen",
+  "appName": "Sapio",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#ffffff"
+  }
+}

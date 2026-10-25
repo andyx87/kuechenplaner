@@ -1,0 +1,36 @@
+{
+  "name": "koch-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/camera": "^8.2.4",
+    "@capacitor/core": "^8.5.1",
+    "@fontsource-variable/fraunces": "^5.2.5",
+    "@fontsource/instrument-serif": "^5.2.8",
+    "@fontsource/karla": "^5.2.5",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "@fontsource/poppins": "^5.2.7",
+    "@fontsource/space-mono": "^5.2.9",
+    "dompurify": "^3.4.15",
+    "lucide-react": "^1.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^5.4.11"
+  }
+}

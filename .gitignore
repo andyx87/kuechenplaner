@@ -1,0 +1,33 @@
+# Abhängigkeiten / virtuelle Umgebungen (regenerierbar)
+node_modules/
+**/node_modules/
+.venv/
+**/.venv/
+venv/
+
+# Python-Cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Build-Artefakte (aus src neu baubar)
+koch-web/dist/
+
+# Lokale Editor-/Tool-Einstellungen
+.claude/settings.local.json
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Lokale Konfiguration mit Secrets
+.env
+**/.env
+.env.*
+!.env.example
+**/.env.*
+!**/.env.example

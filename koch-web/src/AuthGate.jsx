@@ -1,0 +1,169 @@
+import { useEffect, useState } from 'react'
+import { api } from './api.js'
+import App from './App.jsx'
+import Login from './components/Login.jsx'
+import EinladungAnnehmen from './components/EinladungAnnehmen.jsx'
+import Kuendigung from './components/Kuendigung.jsx'
+import KontoLoeschen from './components/KontoLoeschen.jsx'
+import { PasswortReset, EmailVerify } from './components/AuthAktionen.jsx'
+import { RechtSeite } from './components/Rechtliches.jsx'
+import { Spinner, Button } from './ui.jsx'
+
+// Entscheidet: lädt -> Spinner, Einladung/Reset/Verify-Link -> jeweilige Seite,
+// nicht angemeldet -> Login, Server nicht erreichbar -> Wiederholen, sonst -> App.
+// Beta-Anmeldelinks: /beta/<kanal> (z.B. /beta/reddit). nginx liefert für jeden Pfad die
+// index.html, der Kanal wird hier aus dem Pfad gelesen. /beta ohne Kanal -> 'allgemein'.
+function betaSlugAusPfad() {
+  const m = window.location.pathname.match(/^\/beta(?:\/([A-Za-z0-9_-]{1,40}))?\/?$/)
+  return m ? (m[1] || 'allgemein').toLowerCase() : null
+}
+
+// Kündigungsseite nach § 312k BGB: /kuendigen, ohne Anmeldung erreichbar.
+// Bestätigungslink aus der Mail: /kuendigen#bestaetigen=<token> – das Fragment
+// erreicht den Server nicht (kein Token in Zugriffslogs, S-1/S-10) und wird nach
+// dem Auslesen per replaceState aus der Adresszeile entfernt.
+function istKuendigenPfad() {
+  return /^\/kuendigen\/?$/.test(window.location.pathname)
+}
+
+function kuendigenTokenAusHash() {
+  const m = window.location.hash.match(/^#bestaetigen=(.+)$/)
+  if (!m) return null
+  const token = decodeURIComponent(m[1])
+  window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  return token
+}
+
+// Öffentliche Kontolösch-Seite: /konto-loeschen (Anfrage) bzw. mit #loesch=<token>
+// (Bestätigungslink aus der Mail). Ohne Anmeldung erreichbar (Google Play verlangt
+// zusätzlich zum In-App-Weg eine öffentliche Web-Adresse für die Kontolöschung).
+function istKontoLoeschenPfad() {
+  return /^\/konto-loeschen\/?$/.test(window.location.pathname)
+}
+
+// S3 (Sicherheitsprüfung AND-24): Das Lösch-Token reist im URL-Fragment – Fragmente
+// gehen nicht an den Server (keine Zugriffslogs, kein Referer-Leak). Ältere Links mit
+// ?loesch= (Query) werden während der Übergangszeit weiter erkannt; der Query-Weg wird
+// serverseitig nicht mehr erzeugt.
+function loeschTokenAusUrl() {
+  const m = window.location.hash.match(/[#&]loesch=([^&#]+)/)
+  if (m) return decodeURIComponent(m[1])
+  return new URLSearchParams(window.location.search).get('loesch')
+}
+
+// Öffentliche Rechtstext-Seiten als echte Pfade: /datenschutz, /impressum, /agb
+// (u. a. Datenschutz-URL im Play-Store-Eintrag). nginx liefert für jeden Pfad die
+// index.html, die Zuordnung passiert hier. Der Query-Weg ?recht=… bleibt gültig
+// (Bestandslinks in Mails); steht beides da, gewinnt der Query-Parameter.
+function rechtDocAusPfad() {
+  const m = window.location.pathname.match(/^\/(datenschutz|impressum|agb)\/?$/)
+  return m ? m[1] : null
+}
+
+export default function AuthGate() {
+  const params = new URLSearchParams(window.location.search)
+  const rechtPfad = rechtDocAusPfad()
+  const rechtDoc = params.get('recht') || rechtPfad
+  const einladungToken = params.get('einladung')
+  const resetToken = params.get('reset')
+  const verifyToken = params.get('verify')
+  const betaSlug = betaSlugAusPfad()
+  const kuendigen = istKuendigenPfad()
+  const kontoLoeschen = istKontoLoeschenPfad()
+  const loeschToken = kontoLoeschen ? loeschTokenAusUrl() : null
+  // Bestätigungs-Token der Kündigung EINMALIG aus dem Hash lesen (und sofort aus der
+  // Adresszeile entfernen) – Re-Renders dürfen ihn nicht verlieren.
+  const [kuendigenToken] = useState(() => (kuendigen ? kuendigenTokenAusHash() : null))
+  const start = kuendigen ? 'kuendigen'
+    : kontoLoeschen ? 'konto-loeschen'
+    : rechtDoc ? 'recht' : einladungToken ? 'einladung' : resetToken ? 'reset' : verifyToken ? 'verify' : 'laedt'
+  const [zustand, setZustand] = useState(start)  // 'laedt'|'recht'|'einladung'|'reset'|'verify'|'kuendigen'|'konto-loeschen'|'login'|'app'
+  const [auth, setAuth] = useState(null)
+  const [beta, setBeta] = useState(null)         // Infos zum Beta-Kanal (oder null)
+
+  const linkFlow = kuendigen || kontoLoeschen || rechtDoc || einladungToken || resetToken || verifyToken
+  const zurPathname = () => { window.location.href = window.location.pathname }
+  const zurStartseite = () => { window.location.href = '/' }
+
+  useEffect(() => {
+    if (linkFlow) return  // Öffentliche/Link-Flows (Recht/Einladung/Reset/Verify) haben Vorrang
+    // Beta-Link: erst den Kanal-Status holen, dann die Anmeldeseite zeigen. Ein bereits
+    // angemeldeter Nutzer landet wie sonst direkt in der App – der Link ist zum Registrieren.
+    if (betaSlug && !api.getToken()) {
+      api.betaInfo(betaSlug)
+        .then((b) => setBeta(b))
+        .catch(() => setBeta(null))   // unbekannter/abgeschalteter Kanal -> normale Anmeldung
+        .finally(() => setZustand('login'))
+      return
+    }
+    if (!api.getToken()) { setZustand('login'); return }
+    pruefeSitzung()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // S3 (Sicherheitsprüfung AND-24): Lösch-Token sofort nach dem Lesen aus der Adresszeile
+  // entfernen – nicht in Browser-Historie, Screen-Shares oder geteilten Geräten stehen
+  // lassen. Das Fragment erreicht den Server ohnehin nie (kein Zugriffslog-Eintrag).
+  useEffect(() => {
+    if (kontoLoeschen && loeschToken) window.history.replaceState(null, '', '/konto-loeschen')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Nur ein echtes 401 meldet ab. Netzwerkfehler/Kaltstart/5xx behalten das Token und
+  // zeigen einen Wiederholen-Bildschirm, statt den Nutzer kommentarlos auszuloggen.
+  function pruefeSitzung() {
+    setZustand('laedt')
+    api.authMe()
+      .then((me) => { setAuth(me); setZustand('app') })
+      .catch((e) => {
+        if (e?.status === 401) { api.setToken(null); setZustand('login') } else setZustand('offline')
+      })
+  }
+
+  function nachAuth(me) {
+    window.history.replaceState({}, '', window.location.pathname)  // ?einladung entfernen
+    setAuth(me)
+    setZustand('app')
+  }
+
+  async function logout() {
+    try { await api.authLogout() } catch { /* ignore */ }
+    api.setToken(null)
+    setAuth(null)
+    setZustand('login')
+  }
+
+  if (zustand === 'kuendigen') return <Kuendigung token={kuendigenToken} onClose={zurStartseite} />
+  if (zustand === 'konto-loeschen') return <KontoLoeschen token={loeschToken} onClose={zurStartseite} />
+  // Rechtstext per Pfad (/datenschutz …): „Schließen" geht zur Startseite, sonst würde
+  // dieselbe Adresse neu geladen. Per Query (?recht=…): nur den Query entfernen.
+  if (zustand === 'recht') return <RechtSeite doc={rechtDoc} onClose={rechtPfad ? zurStartseite : zurPathname} />
+  if (zustand === 'einladung') return (
+    <EinladungAnnehmen
+      token={einladungToken}
+      onAuthed={nachAuth}
+      onAbbruch={zurPathname}
+    />
+  )
+  if (zustand === 'reset') return <PasswortReset token={resetToken} onFertig={zurPathname} />
+  if (zustand === 'verify') return <EmailVerify token={verifyToken} onFertig={zurPathname} />
+  if (zustand === 'laedt') return <div className="flex min-h-screen items-center justify-center"><Spinner /></div>
+  if (zustand === 'offline') return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+      <p className="font-display text-2xl">Keine Verbindung</p>
+      <p className="max-w-xs text-sm text-muted">Sapio ist gerade nicht erreichbar. Prüfe deine Internetverbindung und versuch es noch einmal.</p>
+      <Button onClick={pruefeSitzung}>Erneut versuchen</Button>
+    </div>
+  )
+  if (zustand === 'login') return (
+    <Login
+      beta={beta}
+      onAuthed={(me) => {
+        // /beta/<kanal> aus der Adresszeile entfernen, damit ein Reload in der App landet.
+        if (betaSlug) window.history.replaceState({}, '', '/')
+        setAuth(me); setZustand('app')
+      }}
+    />
+  )
+  return <App auth={auth} onLogout={logout} />
+}
