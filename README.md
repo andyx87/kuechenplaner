@@ -93,3 +93,9 @@ an den eigenen Betrieb (Hosting, Dienstleister) anpassen.
 pip install -r app/requirements.txt pytest pytest-asyncio
 python -m pytest -q tests
 ```
+
+## Lizenz
+
+Topfplan steht unter der **GNU Affero General Public License v3.0** (siehe
+[`LICENSE`](LICENSE) und [`NOTICE`](NOTICE)). Die mitgelieferte Schrift
+`brand/fraunces-display.ttf` steht unter der SIL Open Font License 1.1 ([`brand/OFL.txt`](brand/OFL.txt)).

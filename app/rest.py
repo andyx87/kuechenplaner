@@ -6,7 +6,7 @@ import base64
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 
-from . import adminstats, angebote_import, audit, bilder, chat, config, guided, ki, kontoloeschung, ratelimit, rezept_adapt, rezept_link, rezept_suche, services, userauth, vision
+from . import adminstats, angebote_import, audit, bilder, chat, config, guided, ki, kontoloeschung, pdf, ratelimit, rezept_adapt, rezept_link, rezept_suche, services, userauth, vision
 
 router = APIRouter(prefix="/api")
 
@@ -1255,30 +1255,12 @@ async def angebote_master(body: list[dict]):
 
 
 def _pdf_to_image_data_urls(b64_pdf: str, max_seiten: int = 16) -> list[str]:
-    """Rendert die ersten Seiten eines base64-PDF zu PNG-Data-URLs fuer die Vision-Eingabe.
-    Jede Seite wird auf max. ~1600 px laengste Kante heruntergerechnet (kleinere Payload,
-    gleiche Vision-Qualitaet), damit auch grosse/mehrseitige PDFs zuverlaessig durchlaufen.
-    Gibt [] zurueck, wenn PyMuPDF fehlt oder das PDF nicht lesbar ist."""
+    """Rendert die ersten Seiten eines base64-PDF zu PNG-Data-URLs fuer die Vision-Eingabe
+    (max. ~1600 px laengste Kante). Gibt [] zurueck, wenn das PDF nicht lesbar ist."""
     try:
-        import fitz  # PyMuPDF
-    except ImportError:
-        return []
-    try:
-        doc = fitz.open(stream=base64.b64decode(b64_pdf), filetype="pdf")
+        return pdf.pdf_zu_data_urls(base64.b64decode(b64_pdf), max_seiten)
     except Exception:
         return []
-    urls: list[str] = []
-    try:
-        for page in list(doc)[:max_seiten]:
-            r = page.rect
-            zoom = min(1600.0 / max(r.width, r.height, 1), 2.0)
-            png = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
-            urls.append("data:image/png;base64," + base64.b64encode(png).decode())
-    except Exception:
-        return urls
-    finally:
-        doc.close()
-    return urls
 
 
 class ChatBody(BaseModel):

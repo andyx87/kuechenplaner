@@ -1,0 +1,34 @@
+Topfplan
+Copyright (C) 2026 Andreas Hofmann
+
+Dieses Programm ist freie Software: Sie können es unter den Bedingungen der
+GNU Affero General Public License, Version 3, wie von der Free Software
+Foundation veröffentlicht, weitergeben und/oder modifizieren (siehe LICENSE).
+Es wird OHNE JEDE GEWÄHRLEISTUNG bereitgestellt.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License version 3 (see LICENSE).
+It is distributed WITHOUT ANY WARRANTY.
+
+Hinweis zu AGPL § 13: Wer eine veränderte Fassung als Netzwerkdienst betreibt,
+muss den Nutzern den Quellcode dieser Fassung anbieten.
+
+-------------------------------------------------------------------------------
+Mitgelieferte Dritt-Bestandteile / Bundled third-party components
+-------------------------------------------------------------------------------
+
+brand/fraunces-display.ttf
+  Statische Instanz der Schrift "Fraunces" (Display-Schnitt).
+  Copyright 2020 The Fraunces Project Authors
+  (https://github.com/undercasetype/Fraunces)
+  Lizenz: SIL Open Font License 1.1 – vollständiger Text in brand/OFL.txt.
+  Die Schrift bleibt unter der OFL; sie fällt nicht unter die AGPL dieses Projekts.
+
+Web-Schriften im Frontend (Fraunces, Instrument Serif, Karla, Plus Jakarta Sans,
+Poppins, Space Mono) werden beim Build über npm-Pakete von Fontsource eingebunden
+und stehen ebenfalls unter der SIL Open Font License 1.1. Weitere Abhängigkeiten
+(Python- und npm-Pakete) werden beim Build installiert und stehen unter ihren
+jeweiligen Lizenzen (u. a. MIT, BSD, Apache-2.0, ISC, HPND).
+
+PDF-Verarbeitung: pypdfium2 (Apache-2.0 / BSD-3-Clause) mit PDFium (BSD-3-Clause /
+Apache-2.0). PyMuPDF (AGPL) wird nicht mehr verwendet.

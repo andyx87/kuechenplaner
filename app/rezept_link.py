@@ -19,7 +19,7 @@ import re
 import socket
 from urllib.parse import urlsplit
 
-from . import ki, services
+from . import ki, pdf, services
 from .db import acquire
 from .userauth import current_account, current_user, darf_ki
 
@@ -318,25 +318,9 @@ async def _verarbeite(data: dict, quelle: str, fallback_text: str | None,
 def _pdf_seiten_zu_urls(b64_pdf: str, max_seiten: int = 10) -> list[str]:
     """Rendert die ersten PDF-Seiten zu PNG-Data-URLs (auf ≤1600 px herunterskaliert)."""
     try:
-        import fitz  # PyMuPDF
-    except ImportError:
-        return []
-    try:
-        doc = fitz.open(stream=base64.b64decode(b64_pdf), filetype="pdf")
+        return pdf.pdf_zu_data_urls(base64.b64decode(b64_pdf), max_seiten)
     except Exception:
         return []
-    urls: list[str] = []
-    try:
-        for page in list(doc)[:max_seiten]:
-            r = page.rect
-            zoom = min(1600.0 / max(r.width, r.height, 1), 2.0)
-            png = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
-            urls.append("data:image/png;base64," + base64.b64encode(png).decode())
-    except Exception:
-        return urls
-    finally:
-        doc.close()
-    return urls
 
 
 async def importiere_aus_link(url: str) -> dict:

@@ -12,14 +12,13 @@ und wird danach geloescht.
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import os
 import re
 import uuid
 from datetime import date as _d, timedelta as _td
 
-from . import ki, services
+from . import ki, pdf, services
 from .userauth import current_account
 
 # job_id -> {status, phase, seite, seiten, gefunden, importiert, error, erkannt, ...}
@@ -28,39 +27,6 @@ TMP_DIR = os.environ.get("ANGEBOTE_TMP_DIR", "/tmp/koch_angebote")
 MAX_SEITEN = 24
 TEXT_MIN = 200  # ab so vielen Zeichen Seitentext: Text-Pfad statt Vision-Backup
 
-
-
-def _render(path: str) -> list[str]:
-    """Datei -> Liste von Bild-Data-URLs (PDF-Seiten oder ein einzelnes Bild)."""
-    ext = os.path.splitext(path)[1].lower()
-    if ext == ".pdf":
-        try:
-            import fitz  # PyMuPDF
-        except ImportError:
-            return []
-        try:
-            doc = fitz.open(path)
-        except Exception:
-            return []
-        urls: list[str] = []
-        try:
-            # Auf max. ~1600 px laengste Kante skalieren (unter Anthropics 5-MB-/
-            # ~1568-px-Grenze; groesser bringt nichts und wird ohnehin verkleinert).
-            for page in list(doc)[:MAX_SEITEN]:
-                r = page.rect
-                zoom = min(1600.0 / max(r.width, r.height, 1), 2.0)
-                png = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
-                urls.append("data:image/png;base64," + base64.b64encode(png).decode())
-        finally:
-            doc.close()
-        return urls
-    try:
-        with open(path, "rb") as f:
-            b = f.read()
-    except OSError:
-        return []
-    mt = "image/png" if ext == ".png" else "image/jpeg"
-    return [f"data:{mt};base64," + base64.b64encode(b).decode()]
 
 
 _SYS = (
@@ -129,52 +95,16 @@ def _parse(text: str) -> dict:
     return {}
 
 
-def _crop_from_page(page, box) -> "str | None":
-    """box=[ymin,xmin,ymax,xmax] normiert 0..1000 -> kleines JPEG-Data-URL des
-    Produktausschnitts. None bei ungueltiger/zu kleiner Box."""
-    try:
-        import fitz  # PyMuPDF
-    except ImportError:
-        return None
-    if not isinstance(box, (list, tuple)) or len(box) != 4:
-        return None
-    try:
-        ymin, xmin, ymax, xmax = (float(v) for v in box)
-    except (TypeError, ValueError):
-        return None
-    r = page.rect
-    x0 = max(0.0, min(xmin, xmax)) / 1000.0 * r.width
-    x1 = min(1000.0, max(xmin, xmax)) / 1000.0 * r.width
-    y0 = max(0.0, min(ymin, ymax)) / 1000.0 * r.height
-    y1 = min(1000.0, max(ymin, ymax)) / 1000.0 * r.height
-    w, h = x1 - x0, y1 - y0
-    if w < 8 or h < 8:
-        return None
-    zoom = max(0.4, min(320.0 / max(w, h), 4.0))
-    try:
-        import fitz
-        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), clip=fitz.Rect(x0, y0, x1, y1))
-        try:
-            jpg = pix.tobytes("jpeg", jpg_quality=68)
-        except TypeError:
-            jpg = pix.tobytes("jpeg")
-    except Exception:
-        return None
-    if not jpg or len(jpg) > 60000:
-        return None
-    return "data:image/jpeg;base64," + base64.b64encode(jpg).decode()
-
-
 def _bilder_zuordnen(meta: dict, page, aktiv: bool = True) -> None:
-    """Schneidet je Angebot mit gueltiger 'box' den Produktausschnitt aus der Seite
-    und legt ihn als 'bild' ab. 'box' wird IMMER entfernt (nie importiert); ohne
+    """Schneidet je Angebot mit gueltiger 'box' den Produktausschnitt aus dem Seitenbild
+    (PIL-Bild) und legt ihn als 'bild' ab. 'box' wird IMMER entfernt (nie importiert); ohne
     aktiv/Seite wird nur aufgeraeumt, nicht geschnitten."""
     for it in (meta.get("angebote") or []):
         box = it.pop("box", None)
         if not aktiv or page is None or not box:
             continue
         try:
-            bild = _crop_from_page(page, box)
+            bild = pdf.ausschnitt(page, box)
         except Exception:
             bild = None
         if bild:
@@ -320,93 +250,51 @@ async def _run(job_id: str, path: str, haendler: str | None, gv: str | None, gb:
             _verarbeite(meta)
         elif ext == ".pdf":
             try:
-                import fitz  # PyMuPDF
-            except ImportError:
-                job.update(status="fehler", error="PDF-Unterstuetzung (PyMuPDF) fehlt.")
-                return
-            try:
-                doc = fitz.open(path)
+                job["seiten"] = min(pdf.seitenzahl(path), MAX_SEITEN)
+                seiten = pdf.pdf_seiten(path, MAX_SEITEN)
             except Exception:
                 job.update(status="fehler", error="PDF konnte nicht geoeffnet werden.")
                 return
-            pages = list(doc)[:MAX_SEITEN]
-            job["seiten"] = len(pages)
-            try:
-                for i, page in enumerate(pages, 1):
-                    job["seite"] = i
-                    meta = {}
-                    try:
-                        txt = page.get_text().strip()
-                        if mit_bildern:
-                            # Bilder gewuenscht -> Vision pro Seite (liefert Angebote UND
-                            # Produktbild-Boxen). Text nur als Fallback, wenn Vision leer.
-                            r = page.rect
-                            zoom = min(1600.0 / max(r.width, r.height, 1), 2.0)
-                            png = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
-                            url = "data:image/png;base64," + base64.b64encode(png).decode()
-                            meta = await _seite_extrakt(url, heute)
-                            modi.add("vision")
-                            if not (meta.get("angebote")) and len(txt) >= TEXT_MIN:
-                                meta = await _seite_text(txt, heute)
-                                modi.add("text")
-                        elif len(txt) >= TEXT_MIN:
-                            # Ohne Bilder: schneller Text-Pfad.
+            for i, seite in enumerate(seiten, 1):
+                job["seite"] = i
+                meta = {}
+                try:
+                    txt = seite.text
+                    if mit_bildern or len(txt) < TEXT_MIN:
+                        # Bilder gewuenscht (liefert Angebote UND Produktbild-Boxen) oder
+                        # keine brauchbare Textebene -> Vision pro Seite.
+                        meta = await _seite_extrakt(pdf.data_url(seite.bild), heute)
+                        modi.add("vision")
+                        if not (meta.get("angebote")) and len(txt) >= TEXT_MIN:
                             meta = await _seite_text(txt, heute)
                             modi.add("text")
-                        else:
-                            # Nur Bild auf der Seite -> Vision-Backup (ohne Crop).
-                            r = page.rect
-                            zoom = min(1600.0 / max(r.width, r.height, 1), 2.0)
-                            png = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
-                            url = "data:image/png;base64," + base64.b64encode(png).decode()
-                            meta = await _seite_extrakt(url, heute)
-                            modi.add("vision")
-                    except (PermissionError, ki.KiNichtKonfiguriert):
-                        raise  # Sperre/fehlende Konfiguration klar melden, nicht als "0 Angebote" verschlucken
-                    except Exception:
-                        meta = {}
-                    _bilder_zuordnen(meta, page, mit_bildern)
-                    _verarbeite(meta)
-            finally:
-                doc.close()
+                    else:
+                        # Ohne Bilder: schneller Text-Pfad.
+                        meta = await _seite_text(txt, heute)
+                        modi.add("text")
+                except (PermissionError, ki.KiNichtKonfiguriert):
+                    raise  # Sperre/fehlende Konfiguration klar melden, nicht als "0 Angebote" verschlucken
+                except Exception:
+                    meta = {}
+                _bilder_zuordnen(meta, seite.bild, mit_bildern)
+                _verarbeite(meta)
         else:
-            # Einzelbild -> immer Vision. Fuer den Crop ueber fitz oeffnen (faellt auf
-            # rohes Rendern zurueck, wenn das nicht klappt).
+            # Einzelbild -> immer Vision; Ausschnitte aus demselben Bild.
             job["seiten"] = 1
             job["seite"] = 1
-            meta = {}
-            page = None
-            idoc = None
-            url = None
             try:
-                import fitz  # PyMuPDF
-                idoc = fitz.open(path)
-                page = idoc[0]
-                r = page.rect
-                zoom = min(1600.0 / max(r.width, r.height, 1), 2.0)
-                png = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
-                url = "data:image/png;base64," + base64.b64encode(png).decode()
+                seite = pdf.bild_oeffnen(path)
             except Exception:
-                page = None
-                urls = _render(path)
-                url = urls[0] if urls else None
-            if not url:
-                if idoc is not None:
-                    idoc.close()
                 job.update(status="fehler", error="Datei konnte nicht gelesen werden (PDF oder Bild erwartet).")
                 return
             try:
-                meta = await _seite_extrakt(url, heute)
+                meta = await _seite_extrakt(pdf.data_url(seite.bild, "JPEG", 85), heute)
                 modi.add("vision")
             except (PermissionError, ki.KiNichtKonfiguriert):
-                if idoc is not None:
-                    idoc.close()
                 raise  # Sperre/fehlende Konfiguration klar melden, nicht als "0 Angebote" verschlucken
             except Exception:
                 meta = {}
-            _bilder_zuordnen(meta, page, mit_bildern)
-            if idoc is not None:
-                idoc.close()
+            _bilder_zuordnen(meta, seite.bild, mit_bildern)
             _verarbeite(meta)
 
         job["modus"] = "/".join(sorted(modi)) or "?"

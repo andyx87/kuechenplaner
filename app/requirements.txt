@@ -5,7 +5,7 @@ asyncpg>=0.29
 openai>=1.40
 python-multipart>=0.0.9
 pydantic>=2
-pymupdf>=1.24
+pypdfium2>=4.30,<6
 argon2-cffi>=23.1
 pillow>=10.0
 tzdata
