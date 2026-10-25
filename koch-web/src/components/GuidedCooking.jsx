@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from '../api.js'
-import { getVorratAktiv, SPRACHE_AKTIV } from '../settings.js'
+import { getVorratAktiv, SPRACHSTEUERUNG_MOEGLICH } from '../settings.js'
+import { useKi } from '../kiStatus.js'
 import { registerOverlay } from '../backnav.js'
 import { Icon } from '../icons.jsx'
 
@@ -13,6 +14,32 @@ function geraetVerfuegbar(geraetName, heuteNamen) {
   if (!geraetName) return true
   const gn = geraetName.toLowerCase()
   return [...(heuteNamen || [])].some((hn) => gn.includes(hn.toLowerCase()) || hn.toLowerCase().includes(gn))
+}
+
+// Ohne Text-KI (oder wenn die KI-Aufbereitung scheitert): Schritte direkt aus dem Rezept
+// bilden – je Zeile der gewählten Variante ein Schritt, „x Min." ergibt einen Timer.
+function lokaleSchritte(detail, varianten) {
+  const schritte = []
+  const ausText = (text, komponente) => {
+    String(text || '').replace(/\\n/g, '\n').split(/\n+/)
+      .map((z) => z.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim())
+      .filter(Boolean)
+      .forEach((t) => {
+        const m = t.match(/(\d+)\s*(?:-\s*\d+\s*)?(?:Min\b|Min\.|Minuten)/i)
+        schritte.push({ text: t, komponente: komponente || null, ...(m ? { timer: true, dauer_minuten: Number(m[1]) } : {}) })
+      })
+  }
+  const komps = detail?.zubereitung || []
+  if (komps.length) {
+    komps.forEach((k, i) => {
+      const vs = k.varianten || []
+      const v = vs[(varianten && varianten[i]) || 0] || vs[0]
+      ausText(v?.text, k.titel)
+    })
+  } else {
+    ausText(detail?.anleitung, null)
+  }
+  return schritte.length ? { schritte, portionen: detail?.portionen || null } : false
 }
 
 // Buntes Konfetti zum Abschluss (reines CSS, einmalig zufällig erzeugt).
@@ -44,6 +71,7 @@ function Konfetti() {
 // Vollbild-Kochmodus: KI-strukturierte Schritte, Timer, Wake-Lock, Vorlesen,
 // Sprachbefehle und KI-Assistent. Mengen werden auf die Zielportionen skaliert.
 export default function GuidedCooking({ detail, portionen, heuteNamen, onClose, notify }) {
+  const ki = useKi()
   const vorratAktiv = getVorratAktiv()
 
   // Geräte, für die das Rezept Varianten anbietet (sonst ist eine Wahl sinnlos).
@@ -93,13 +121,15 @@ export default function GuidedCooking({ detail, portionen, heuteNamen, onClose, 
   const audioRef = useRef(null)
 
   // Schritte laden (KI-strukturiert, gecacht) – erst nach bestätigter Geräte-Auswahl.
+  // Ohne Text-KI bzw. bei Fehlern: Schritte lokal aus dem Rezepttext.
   useEffect(() => {
-    if (!detail?.id || varianten === null) return
+    if (!detail?.id || varianten === null || !ki.geladen) return
+    if (!ki.text) { setDaten(lokaleSchritte(detail, varianten)); return }
     setDaten(null)
     api.guidedHolen(detail.id, varianten)
-      .then((d) => setDaten(d && Array.isArray(d.schritte) && d.schritte.length ? d : false))
-      .catch(() => setDaten(false))
-  }, [detail?.id, chosen])  // eslint-disable-line react-hooks/exhaustive-deps
+      .then((d) => setDaten(d && Array.isArray(d.schritte) && d.schritte.length ? d : lokaleSchritte(detail, varianten)))
+      .catch(() => setDaten(lokaleSchritte(detail, varianten)))
+  }, [detail?.id, chosen, ki.geladen, ki.text])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Geräte-/Browser-Zurück schließt den Kochmodus (statt die Rubrik zu wechseln).
   useEffect(() => {
@@ -294,7 +324,7 @@ export default function GuidedCooking({ detail, portionen, heuteNamen, onClose, 
             title="Vorlesen" aria-label="Vorlesen"
             className={`${iconBtn} ${vorlesen ? 'bg-terracotta text-on-accent shadow-glow' : 'border border-line text-muted'}`}><Icon name="volume" size={17} /></button>
         )}
-        {SPRACHE_AKTIV && (
+        {SPRACHSTEUERUNG_MOEGLICH && (
           <button onClick={toggleHoeren} title="Sprachsteuerung" aria-label="Sprachsteuerung"
             className={`${iconBtn} ${hoeren ? 'gc-ring bg-terracotta text-on-accent' : 'border border-line text-muted'}`}><Icon name="mic" size={17} /></button>
         )}
@@ -421,7 +451,7 @@ export default function GuidedCooking({ detail, portionen, heuteNamen, onClose, 
       </div>
 
       {/* KI-Assistent */}
-      {frageOffen && (
+      {frageOffen && ki.text && (
         <div className="border-t border-line bg-card/95 px-4 py-3 backdrop-blur">
           {(antwort || frageBusy) && (
             <p className={`mb-2 rounded-2xl bg-terracotta/10 p-3 text-sm text-ink/80 ${frageBusy ? 'gc-pulse' : ''}`}>
@@ -443,8 +473,8 @@ export default function GuidedCooking({ detail, portionen, heuteNamen, onClose, 
       {!fertig && schritte.length > 0 && (
         <div className="flex items-center gap-2 border-t border-line bg-card/80 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
           <button onClick={zurueck} disabled={idx === 0} className="rounded-2xl border border-line px-4 py-3.5 text-sm font-semibold text-muted transition active:scale-95 disabled:opacity-40">Zurück</button>
-          <button onClick={() => { setFrageOffen((o) => !o); setAntwort('') }} aria-label="Frage stellen"
-            className={`rounded-2xl border border-terracotta/50 px-3.5 py-3.5 text-sm font-semibold text-terracotta transition active:scale-95 ${frageOffen ? 'bg-terracotta/10' : ''}`}><Icon name="sparkles" size={18} /></button>
+          {ki.text && <button onClick={() => { setFrageOffen((o) => !o); setAntwort('') }} aria-label="Frage stellen"
+            className={`rounded-2xl border border-terracotta/50 px-3.5 py-3.5 text-sm font-semibold text-terracotta transition active:scale-95 ${frageOffen ? 'bg-terracotta/10' : ''}`}><Icon name="sparkles" size={18} /></button>}
           <button onClick={weiter} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-terracotta to-terracotta-deep px-4 py-3.5 text-sm font-bold text-on-accent shadow-soft transition active:scale-[0.98]">
             {istLetzter ? <>Fertig <Icon name="check" size={18} /></> : <>Weiter <Icon name="arrow-right" size={18} /></>}
           </button>

@@ -7,6 +7,7 @@ import { getVorratAktiv } from '../settings.js'
 import { IST_NATIVE, WEB_URL } from '../native.js'
 import PortionenWahl from './PortionenWahl.jsx'
 import GuidedCooking from './GuidedCooking.jsx'
+import { useKi } from '../kiStatus.js'
 import { Icon } from '../icons.jsx'
 import { registerOverlay } from '../backnav.js'
 
@@ -99,6 +100,7 @@ export function ZubereitungAnsicht({ komponenten, heuteNamen }) {
 export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortionen = 2, onSpontan, auth, onDetailClose, detailOnly = false, angebotMarkt = null }) {
   const istAdmin = auth?.user?.plattform_rolle === 'super_admin'
   const vorratAktiv = getVorratAktiv()
+  const ki = useKi()
   const [list, setList] = useState([])
   const [q, setQ] = useState('')
   const [sort, setSort] = useState('name')   // name | bewertung | fehlend
@@ -306,14 +308,16 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
         await oeffne(neu.id)
         return
       }
-      notify(`„${r.name}" übernommen – wird an deine Geräte angepasst …`)
-      // An die eigenen Küchengeräte anpassen (KI). Fehler sind unkritisch – importiert ist es.
-      try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch { /* trotzdem importiert */ }
+      if (ki.text) {
+        notify(`„${r.name}" übernommen – wird an deine Geräte angepasst …`)
+        // An die eigenen Küchengeräte anpassen (KI). Fehler sind unkritisch – importiert ist es.
+        try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch { /* trotzdem importiert */ }
+      }
       // Hatte die Vorlage ein Bild, wird es mitkopiert (keine neue Bildgenerierung).
       // Nur ohne Bild wird gefragt, ob eines erzeugt werden soll.
       if (neu?.bild_uebernommen) {
         setBildBump((b) => b + 1)   // Thumbnails zeigen das übernommene Bild sofort
-      } else {
+      } else if (ki.bild) {
         const wantBild = await importBildEntscheidung()
         if (wantBild) {
           try { await api.rezeptBildGenerieren(neu.id); setBildBump((b) => b + 1) }
@@ -360,8 +364,8 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
         notify(`„${neu.name}" importiert`)
         setLinkOffen(false); setLinkUrl(''); setLinkDateien([]); setAnsicht('eigene'); lade('')
         // An die eigenen Geräte anpassen (KI). Fehler sind unkritisch – importiert ist es.
-        try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch { /* trotzdem importiert */ }
-        const wantBild = await importBildEntscheidung()
+        if (ki.text) { try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch { /* trotzdem importiert */ } }
+        const wantBild = ki.bild && await importBildEntscheidung()
         if (wantBild) { try { await api.rezeptBildGenerieren(neu.id) } catch { notify('Bild erzeugen fehlgeschlagen', 'err') } }
         lade('')
       } else {
@@ -433,7 +437,7 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
       setBild(detail.id, res.bild); setBildBump((b) => b + 1)   // Thumbnails überall live aktualisieren
       lade('')
       notify('Bild erstellt')
-    } catch { notify('Bildgenerierung fehlgeschlagen (LiteLLM erreichbar?)', 'err') }
+    } catch (e) { notify(e?.kiNichtEingerichtet ? e.message : 'Bildgenerierung fehlgeschlagen', 'err') }
     finally { setBildBusy(false) }
   }
   async function bildUpload(e) {
@@ -673,11 +677,11 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
             </div>
           ) : (
             <div className="grid gap-4">
-              <button onClick={() => setAddChooser(true)}
+              <button onClick={() => ((ki.text || ki.vision) ? setAddChooser(true) : setAdd(true))}
                 className="hero-card relative flex items-center gap-4 overflow-hidden rounded-[22px] p-6 text-left transition hover:-translate-y-0.5 active:scale-[0.99] sm:p-7">
                 <span className="hero-glow" />
                 <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-terracotta/15 text-terracotta sm:h-16 sm:w-16"><Icon name="plus" size={30} /></span>
-                <span className="relative"><span className="block text-xl font-bold text-ink sm:text-2xl">Rezept hinzufügen</span><span className="mt-0.5 block text-sm text-muted">Mit KI, importieren oder selbst anlegen</span></span>
+                <span className="relative"><span className="block text-xl font-bold text-ink sm:text-2xl">Rezept hinzufügen</span><span className="mt-0.5 block text-sm text-muted">{(ki.text || ki.vision) ? 'Mit KI, importieren oder selbst anlegen' : 'Selbst anlegen'}</span></span>
               </button>
               <button onClick={() => setHubStep('kategorie')}
                 className="flex items-center gap-4 rounded-[22px] border border-line bg-card p-6 text-left transition hover:-translate-y-0.5 hover:border-terracotta/40 active:scale-[0.99] sm:p-7">
@@ -777,7 +781,7 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
                       {r.fehlend === 0 ? <><Icon name="check" size={16} /> alles im Vorrat</> : <><Icon name="x" size={16} /> {r.fehlend} {r.fehlend === 1 ? 'Zutat fehlt' : 'Zutaten fehlen'}</>}
                     </span>
                   )}
-                  {r.account_id === meinKonto && r.geraete_abgestimmt === false && (
+                  {ki.text && r.account_id === meinKonto && r.geraete_abgestimmt === false && (
                     <button onClick={(e) => { e.stopPropagation(); anpassenAusListe(r) }} disabled={anpassKarteBusy === r.id}
                       className="mt-2 inline-flex items-center justify-center gap-1 rounded-full border border-terracotta/50 bg-terracotta/10 px-2.5 py-1 text-xs font-semibold text-terracotta transition hover:bg-terracotta/20 disabled:opacity-50">
                       <Icon name="wrench" size={16} /> {anpassKarteBusy === r.id ? 'wird angepasst …' : 'An deine Küche anpassen'}
@@ -800,16 +804,16 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
       {!detailOnly && (
         <Modal open={addChooser} onClose={() => setAddChooser(false)} title="Rezept hinzufügen">
           <div className="grid gap-3">
-            <button onClick={() => { setAddChooser(false); setGenOffen(true) }}
+            {ki.text && <button onClick={() => { setAddChooser(false); setGenOffen(true) }}
               className="flex items-center gap-3 rounded-2xl bg-terracotta p-4 text-left text-on-accent shadow-soft transition hover:bg-terracotta-deep active:scale-[0.99]">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15"><Icon name="sparkles" size={22} /></span>
-              <span><span className="block font-bold">Mit KI erstellen</span><span className="block text-sm text-white/80">Aus Zutaten, Idee oder Foto</span></span>
-            </button>
-            <button onClick={() => { setAddChooser(false); setLinkOffen(true) }}
+              <span><span className="block font-bold">Mit KI erstellen</span><span className="block text-sm text-white/80">Aus Zutaten oder Idee</span></span>
+            </button>}
+            {(ki.text || ki.vision) && <button onClick={() => { setAddChooser(false); setLinkOffen(true) }}
               className="flex items-center gap-3 rounded-2xl border border-terracotta/40 bg-terracotta/5 p-4 text-left text-terracotta transition hover:bg-terracotta/10 active:scale-[0.99]">
               <Icon name="download" size={22} className="shrink-0" />
-              <span><span className="block font-bold">Importieren</span><span className="block text-sm text-terracotta/70">Link, Foto, Text, PDF</span></span>
-            </button>
+              <span><span className="block font-bold">Importieren</span><span className="block text-sm text-terracotta/70">{[ki.text && 'Link, Text', ki.vision && 'Foto, PDF'].filter(Boolean).join(', ')}</span></span>
+            </button>}
             <button onClick={() => { setAddChooser(false); setAdd(true) }}
               className="flex items-center gap-3 rounded-2xl border border-line bg-card p-4 text-left transition hover:border-terracotta/40 active:scale-[0.99]">
               <Icon name="plus" size={22} className="shrink-0 text-terracotta" />
@@ -907,7 +911,7 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
               ? <img src={detail.bild} alt={detail.name} className="aspect-square w-full rounded-xl object-cover" />
               : (detail.account_id === meinKonto && (
                   <div className="flex items-stretch gap-2">
-                    <Button variant="kiGhost" className="flex-1 py-3.5 text-base" onClick={bildGenerieren} disabled={bildBusy}>{bildBusy ? <Spinner /> : <span className="inline-flex items-center gap-1"><Icon name="sparkles" size={16} /> Bild hinzufügen</span>}</Button>
+                    {ki.bild && <Button variant="kiGhost" className="flex-1 py-3.5 text-base" onClick={bildGenerieren} disabled={bildBusy}>{bildBusy ? <Spinner /> : <span className="inline-flex items-center gap-1"><Icon name="sparkles" size={16} /> Bild hinzufügen</span>}</Button>}
                     <Button variant="ghost" className="flex-1 py-3.5 text-base" onClick={() => bildRef.current?.click()} disabled={bildBusy}><span className="inline-flex items-center gap-1"><Icon name="camera" size={16} /> Eigenes Bild</span></Button>
                   </div>
                 ))}
@@ -1060,12 +1064,12 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
               {!IST_NATIVE && <button onClick={() => { setDetailMenu(false); druckePdf() }} className="flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2.5 text-left text-sm font-semibold hover:border-terracotta/40"><Icon name="printer" size={18} className="text-muted" /> Als PDF</button>}
               {detail.account_id === meinKonto && detail.bild && (
                 <>
-                  <button onClick={() => { setDetailMenu(false); bildGenerieren() }} disabled={bildBusy} className="flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2.5 text-left text-sm font-semibold hover:border-terracotta/40 disabled:opacity-50"><Icon name="sparkles" size={18} className="text-terracotta" /> Neues KI-Bild</button>
+                  {ki.bild && <button onClick={() => { setDetailMenu(false); bildGenerieren() }} disabled={bildBusy} className="flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2.5 text-left text-sm font-semibold hover:border-terracotta/40 disabled:opacity-50"><Icon name="sparkles" size={18} className="text-terracotta" /> Neues KI-Bild</button>}
                   <button onClick={() => { setDetailMenu(false); bildRef.current?.click() }} disabled={bildBusy} className="flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2.5 text-left text-sm font-semibold hover:border-terracotta/40 disabled:opacity-50"><Icon name="camera" size={18} className="text-muted" /> Eigenes Bild</button>
                   <button onClick={() => { setDetailMenu(false); bildLoeschen() }} disabled={bildBusy} className="flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2.5 text-left text-sm font-semibold text-terracotta-deep hover:border-terracotta/40 disabled:opacity-50"><Icon name="trash" size={18} /> Bild entfernen</button>
                 </>
               )}
-              {detail.account_id === meinKonto && detail.zubereitung?.length > 0 && !detail.geraete_abgestimmt && (
+              {ki.text && detail.account_id === meinKonto && detail.zubereitung?.length > 0 && !detail.geraete_abgestimmt && (
                 <button onClick={() => { setDetailMenu(false); anpassenEines() }} disabled={anpassBusy} className="flex items-center gap-2 rounded-xl border border-terracotta/50 bg-terracotta/5 px-3 py-2.5 text-left text-sm font-semibold text-terracotta hover:bg-terracotta/10 disabled:opacity-50"><Icon name="wrench" size={18} /> An deine Küche anpassen</button>
               )}
               {istAdmin && !(detail.importiert && !detail.veroeffentlicht) && (
@@ -1141,7 +1145,7 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
         )}
       </Modal>
 
-      {!detailOnly && genOffen && (
+      {!detailOnly && genOffen && ki.text && (
         <Generator notify={notify} vorratAktiv={vorratAktiv}
           openRezept={(id) => { setGenOffen(false); oeffne(id) }}
           onClose={() => { setGenOffen(false); lade() }} />
@@ -1159,30 +1163,30 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
       {/* Rezept importieren – Link (Webseite/Social Media), Text, Screenshots/Fotos oder PDF.
           Bewusst OHNE Plattform-Markennamen in der UI (Urheber-/Markenrecht) – die Funktion
           selbst bleibt generisch für beliebige Quellen. */}
-      <Modal open={linkOffen} onClose={() => { if (!linkBusy) { setLinkOffen(false); setLinkUrl(''); setLinkDateien([]) } }} title="Rezept importieren">
+      <Modal open={linkOffen && (ki.text || ki.vision)} onClose={() => { if (!linkBusy) { setLinkOffen(false); setLinkUrl(''); setLinkDateien([]) } }} title="Rezept importieren">
         <div className="space-y-3">
           <p className="text-sm text-muted">
             Füge eine Quelle ein – ich erkenne das Rezept und lege es an:
           </p>
           <ul className="-mt-1 space-y-0.5 text-sm text-muted">
-            <li className="flex items-center gap-1.5"><Icon name="link" size={16} /> <span><b>Link</b> zu einem Rezept (Webseite oder Blog)</span></li>
-            <li className="flex items-center gap-1.5"><Icon name="smartphone" size={16} /> <span><b>Social-Media</b>-Beitrag oder -Reel</span></li>
-            <li className="flex items-center gap-1.5"><Icon name="image" size={16} /> <span><b>Screenshots/Fotos</b> oder <b>PDF</b> (mehrere möglich)</span></li>
-            <li className="flex items-center gap-1.5"><Icon name="edit" size={16} /> <span>oder den <b>Rezepttext</b> direkt einfügen</span></li>
+            {ki.text && <li className="flex items-center gap-1.5"><Icon name="link" size={16} /> <span><b>Link</b> zu einem Rezept (Webseite oder Blog)</span></li>}
+            {ki.text && <li className="flex items-center gap-1.5"><Icon name="smartphone" size={16} /> <span><b>Social-Media</b>-Beitrag oder -Reel</span></li>}
+            {ki.vision && <li className="flex items-center gap-1.5"><Icon name="image" size={16} /> <span><b>Screenshots/Fotos</b> oder <b>PDF</b> (mehrere möglich)</span></li>}
+            {ki.text && <li className="flex items-center gap-1.5"><Icon name="edit" size={16} /> <span>oder den <b>Rezepttext</b> direkt einfügen</span></li>}
           </ul>
-          <textarea
+          {ki.text && <textarea
             className={input + ' min-h-[90px] w-full'}
             placeholder="https://… oder Rezepttext hier einfügen"
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
-          />
-          <input ref={linkFileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={linkDateienWaehlen} />
-          <button
+          />}
+          {ki.vision && <input ref={linkFileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={linkDateienWaehlen} />}
+          {ki.vision && <button
             onClick={() => linkFileRef.current?.click()}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line px-3 py-2.5 text-sm font-semibold text-muted hover:border-terracotta/40 hover:text-terracotta"
           >
             <Icon name="image" size={16} /> Screenshots / Fotos / PDF hinzufügen
-          </button>
+          </button>}
           {linkDateien.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {linkDateien.map((d, i) => (
@@ -1193,9 +1197,9 @@ ${detail.anleitung ? `<h2>Hinweise</h2><p>${esc(detail.anleitung)}</p>` : ''}
               ))}
             </div>
           )}
-          <p className="text-xs text-muted2">
+          {ki.vision && <p className="text-xs text-muted2">
             Steht ein Rezept nur im Video, mach einfach einen Screenshot davon. Mehrere Seiten/Fotos werden zusammen ausgewertet.
-          </p>
+          </p>}
           <p className="text-xs text-muted2">
             Importierte Rezepte bleiben privat in deiner Bibliothek und können nicht veröffentlicht werden.
           </p>

@@ -4,8 +4,10 @@ import { Card, Button, Field, input, Modal, Spinner, Empty, confirmDialog } from
 import { Icon } from '../icons.jsx'
 import { IST_NATIVE } from '../native.js'
 import { nativeFoto } from '../nativeFoto.js'
+import { useKi } from '../kiStatus.js'
 
 export default function Geraete({ notify }) {
+  const ki = useKi()
   const [geraete, setGeraete] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState(null) // null | {mode:'add'} | {mode:'edit', geraet}
@@ -159,18 +161,18 @@ export default function Geraete({ notify }) {
           <div className="hero-glow" />
           <div className="relative min-w-0">
             <h2 className="font-dish text-3xl leading-tight text-ink">Küchengeräte</h2>
-            <p className="label-mono mt-1.5 text-muted2">Ausstattung · Foto-Erfassung</p>
+            <p className="label-mono mt-1.5 text-muted2">{ki.vision ? 'Ausstattung · Foto-Erfassung' : 'Ausstattung'}</p>
           </div>
           <div className="relative flex flex-wrap justify-end gap-2">
-            <Button variant="kiGhost" onClick={fotoAufnehmen} disabled={fotoBusy}>
+            {ki.vision && <Button variant="kiGhost" onClick={fotoAufnehmen} disabled={fotoBusy}>
               {fotoBusy ? <Spinner /> : <span className="inline-flex items-center gap-1"><Icon name="camera" size={16} /> Foto</span>}
-            </Button>
+            </Button>}
             <Button onClick={() => setForm({ mode: 'add' })}>+ Gerät</Button>
           </div>
         </div>
         <input ref={fotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={fotoGewaehlt} />
 
-        {geraete.length > 0 && (
+        {ki.text && geraete.length > 0 && (
           <button
             onClick={anpassen}
             disabled={adapt && adapt.status === 'laeuft'}

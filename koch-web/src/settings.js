@@ -2,13 +2,12 @@
 const VORRAT_KEY = 'vorrat_aktiv'
 const ABHAK_KEY = 'einkauf_abhak_modus'
 
-// Spracheingabe/Sprachsteuerung: AUS. Zwei Gründe:
-//  1) Das Backend liefert für die Spracheingabe standardmäßig 503 (config.SPRACHEINGABE_AKTIV).
-//  2) Die Sprachsteuerung im Kochmodus nutzt die Web Speech API, die es in der Android-
-//     WebView der Capacitor-App nicht gibt – dort lief sie immer in die Fehlermeldung
-//     „Spracherkennung wird von diesem Browser nicht unterstützt".
-// Vorlesen (SpeechSynthesis) bleibt an: das funktioniert überall.
-export const SPRACHE_AKTIV = false
+// Sprachsteuerung im Kochmodus nutzt die Web Speech API des Browsers (kein Server). In der
+// Android-WebView der Capacitor-App gibt es sie nicht – deshalb nur bei vorhandener API.
+// Die Spracheingabe im Chat läuft dagegen über den Server und hängt an /api/ki/status
+// (Fähigkeit „spracheingabe", s. kiStatus.js). Vorlesen (SpeechSynthesis) bleibt unabhängig.
+export const SPRACHSTEUERUNG_MOEGLICH = typeof window !== 'undefined' &&
+  ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
 
 export function getVorratAktiv() {
   try { return localStorage.getItem(VORRAT_KEY) !== '0' } catch { return true }

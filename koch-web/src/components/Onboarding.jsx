@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { api } from '../api.js'
 import { Modal, Button, input, Spinner } from '../ui.jsx'
 import { Icon } from '../icons.jsx'
+import { useKi } from '../kiStatus.js'
 
 const GERAETE_VORSCHLAEGE = ['Backofen', 'Herd', 'Mikrowelle', 'Heißluftfritteuse', 'Thermomix', 'Standmixer', 'Toaster', 'Wasserkocher']
 
 // Geführter Einrichtungs-Assistent für neue Haushalte.
 export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChange }) {
-  const STEPS = ['Willkommen', 'Personen', 'Geräte', 'Vorrat', 'Assistent', 'Fertig']
+  const STEPS = ['Willkommen', 'Personen', 'Geräte', 'Vorrat', 'KI (optional)', 'Fertig']
   const [step, setStep] = useState(0)
   const [personen, setPersonen] = useState([])
   const [geraete, setGeraete] = useState([])
@@ -16,6 +17,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
   const [gName, setGName] = useState('')
   const [busy, setBusy] = useState(false)
   const [fotoBusy, setFotoBusy] = useState(false)
+  const ki = useKi()
 
   useEffect(() => {
     api.personen().then((p) => setPersonen(p || [])).catch(() => {})
@@ -92,7 +94,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
         {step === 0 && (
           <div className="space-y-3">
             <h3 className="inline-flex items-center gap-1.5 font-dish text-4xl leading-tight text-ink">Willkommen bei Topfplan! <Icon name="hand" size={20} /></h3>
-            <p className="text-sm text-muted">In wenigen Schritten ist alles startklar: wer mitisst, welche Küchengeräte ihr habt und ob du den Vorrat pflegen möchtest. Danach zeige ich dir kurz die KI-Funktionen.</p>
+            <p className="text-sm text-muted">In wenigen Schritten ist alles startklar: wer mitisst, welche Küchengeräte ihr habt und ob du den Vorrat pflegen möchtest. Danach siehst du, welche optionalen KI-Funktionen auf diesem Server verfügbar sind.</p>
             <p className="inline-flex items-center gap-1 text-xs text-muted2">Du kannst jederzeit überspringen und später in den <Icon name="settings" size={16} /> Einstellungen erneut starten.</p>
           </div>
         )}
@@ -126,11 +128,11 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
         {step === 2 && (
           <div className="space-y-3">
             <h3 className="font-display text-xl">Eure Küchengeräte</h3>
-            <p className="text-sm text-muted">Tippe an, was ihr habt – das passt die Zubereitungs-Schritte der Rezepte an. Oder lass die KI eure Geräte per Foto erkennen.</p>
-            <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-olive/40 bg-olive/5 px-3 py-2 text-sm font-semibold text-olive hover:bg-olive/10 ${fotoBusy ? 'opacity-60' : ''}`}>
+            <p className="text-sm text-muted">Tippe an, was ihr habt – das passt die Zubereitungs-Schritte der Rezepte an.{ki.vision ? ' Oder lass die KI eure Geräte per Foto erkennen.' : ''}</p>
+            {ki.vision && <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-olive/40 bg-olive/5 px-3 py-2 text-sm font-semibold text-olive hover:bg-olive/10 ${fotoBusy ? 'opacity-60' : ''}`}>
               {fotoBusy ? <Spinner /> : <><Icon name="camera" size={16} /> Geräte per Foto erkennen</>}
               <input type="file" accept="image/*" capture="environment" className="hidden" disabled={fotoBusy} onChange={geraeteFoto} />
-            </label>
+            </label>}
             {geraete.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {geraete.map((g) => (
@@ -158,7 +160,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
           <div className="space-y-3">
             <h3 className="font-display text-xl">Vorratsverwaltung</h3>
             <p className="text-sm text-muted">Möchtest du euren Vorrat pflegen? Dann kannst du beim Einkauf abhaken, Mengen erfassen und siehst, welche Rezepte sofort kochbar sind.</p>
-            <p className="inline-flex items-center gap-1 rounded-lg bg-surface px-2.5 py-1.5 text-xs text-muted2"><Icon name="camera" size={16} /> <span>Vorräte kannst du später bequem <b>per Foto/KI</b> erfassen – einfach im Assistenten (unten) ein Foto anhängen.</span></p>
+            {ki.vision && <p className="inline-flex items-center gap-1 rounded-lg bg-surface px-2.5 py-1.5 text-xs text-muted2"><Icon name="camera" size={16} /> <span>Vorräte kannst du später bequem <b>per Foto/KI</b> erfassen – im Vorrat über „Erfassen".</span></p>}
             <div className="space-y-2">
               <button onClick={() => onVorratChange && onVorratChange(true)} className={`w-full rounded-xl border p-3 text-left ${vorratAktiv ? 'border-terracotta bg-terracotta/5' : 'border-line'}`}>
                 <p className="inline-flex items-center gap-1 font-semibold"><Icon name="circle-check" size={16} /> Ja, Vorrat pflegen</p>
@@ -174,14 +176,24 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
 
         {step === 4 && (
           <div className="space-y-3">
-            <h3 className="font-display text-xl">Deine KI-Funktionen</h3>
-            <ul className="space-y-2 text-sm text-muted">
-              <li className="flex items-start gap-1.5"><Icon name="message-circle" size={16} className="mt-0.5 shrink-0" /> <span><b>Assistent</b> (unten): Fragen zu Vorrat, Plan, Rezepten & Einkauf – oder Foto/PDF anhängen, um Vorräte, Rezepte oder Prospekte zu erfassen.</span></li>
-              <li className="flex items-start gap-1.5"><Icon name="sparkles" size={16} className="mt-0.5 shrink-0" /> <span><b>Rezept erstellen</b> (Start): Ein Rezept passend zu Vorrat, Geräten, Angeboten & Vorlieben – auf Wunsch direkt mit Bild.</span></li>
-              <li className="flex items-start gap-1.5"><Icon name="image" size={16} className="mt-0.5 shrink-0" /> <span><b>Rezeptbilder</b>: beim Erstellen erzeugen lassen (abwählbar) oder eigenes Foto hochladen. Übernimmst du ein Rezept aus der Bibliothek, kommt sein Bild mit.</span></li>
-              <li className="flex items-start gap-1.5"><Icon name="tag" size={16} className="mt-0.5 shrink-0" /> <span><b>Angebote</b>: Prospekt fotografieren/hochladen → die KI erkennt die Angebote und macht Koch-Vorschläge.</span></li>
-            </ul>
-            <p className="inline-flex items-center gap-1 text-[11px] text-muted2"><Icon name="sparkles" size={14} className="text-terracotta" /> Mit dem Funkel-Symbol markierte Aktionen nutzen KI – sofern der Betreiber dieser Instanz einen KI-Anbieter eingerichtet hat.</p>
+            <h3 className="font-display text-xl">KI-Funktionen (optional)</h3>
+            <p className="text-sm text-muted">
+              Topfplan funktioniert vollständig ohne KI. KI-Funktionen sind optional und nur
+              verfügbar, wenn der Betreiber dieses Servers einen KI-Anbieter eingerichtet hat.
+            </p>
+            {ki.irgendwas ? (
+              <>
+                <ul className="space-y-2 text-sm text-muted">
+                  {ki.text && <li className="flex items-start gap-1.5"><Icon name="message-circle" size={16} className="mt-0.5 shrink-0" /> <span><b>Assistent</b> (unten): Fragen zu Vorrat, Plan, Rezepten & Einkauf{ki.vision ? ' – oder Foto/PDF anhängen, um Vorräte, Rezepte oder Prospekte zu erfassen' : ''}.</span></li>}
+                  {ki.text && <li className="flex items-start gap-1.5"><Icon name="sparkles" size={16} className="mt-0.5 shrink-0" /> <span><b>Rezept erstellen</b> (Start): Ein Rezept passend zu Vorrat, Geräten, Angeboten & Vorlieben{ki.bild ? ' – auf Wunsch direkt mit Bild' : ''}.</span></li>}
+                  {ki.bild && <li className="flex items-start gap-1.5"><Icon name="image" size={16} className="mt-0.5 shrink-0" /> <span><b>Rezeptbilder</b>: beim Erstellen erzeugen lassen (abwählbar) oder eigenes Foto hochladen.</span></li>}
+                  {ki.vision && <li className="flex items-start gap-1.5"><Icon name="tag" size={16} className="mt-0.5 shrink-0" /> <span><b>Angebote</b>: Prospekt fotografieren/hochladen → die KI erkennt die Angebote.</span></li>}
+                </ul>
+                <p className="inline-flex items-center gap-1 text-[11px] text-muted2"><Icon name="sparkles" size={14} className="text-terracotta" /> Mit dem Funkel-Symbol markierte Aktionen nutzen KI.</p>
+              </>
+            ) : (
+              <p className="rounded-lg bg-surface px-2.5 py-1.5 text-sm text-muted2">Auf diesem Server sind derzeit keine KI-Funktionen eingerichtet – Rezepte, Planung, Einkauf, Vorrat und Angebote kannst du trotzdem voll nutzen.</p>
+            )}
           </div>
         )}
 
@@ -193,8 +205,8 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
               {personen.length} {personen.length === 1 ? 'Person' : 'Personen'} · {geraete.length} {geraete.length === 1 ? 'Gerät' : 'Geräte'} · Vorrat {vorratAktiv ? 'an' : 'aus'}.
               Du kannst alles jederzeit im Haushalt und in den Einstellungen anpassen.
             </p>
-            <Button variant="ki" className="mx-auto inline-flex items-center gap-1" onClick={fertigMitRezept}><Icon name="sparkles" size={16} /> Erstes Rezept erstellen</Button>
-            <p className="text-xs text-muted2">… oder unten rechts „Loslegen" und in Ruhe umsehen.</p>
+            {ki.text && <Button variant="ki" className="mx-auto inline-flex items-center gap-1" onClick={fertigMitRezept}><Icon name="sparkles" size={16} /> Erstes Rezept erstellen</Button>}
+            <p className="text-xs text-muted2">{ki.text ? '… oder unten rechts „Loslegen" und in Ruhe umsehen.' : 'Unten rechts „Loslegen" und in Ruhe umsehen.'}</p>
           </div>
         )}
 

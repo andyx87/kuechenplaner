@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api.js'
 import { Card, Button, Field, input, Modal, Spinner, Empty, Chip, confirmDialog } from '../ui.jsx'
 import { Icon } from '../icons.jsx'
+import { useKi } from '../kiStatus.js'
 
 const leer = { name: '', menge: '', einheit: '', ablaufdatum: '', lagerort_id: '' }
 
@@ -138,6 +139,7 @@ function VorratZeile({ it, onEdit, onLoeschen }) {
 }
 
 export default function Vorrat({ notify }) {
+  const ki = useKi()
   const [items, setItems] = useState([])
   const [zutaten, setZutaten] = useState([])
   const [lagerorte, setLagerorte] = useState([])
@@ -443,9 +445,9 @@ export default function Vorrat({ notify }) {
         </div>
         <div className="relative flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={() => setVerwalten(true)}><span className="inline-flex items-center gap-1"><Icon name="package" size={16} /> Lagerorte</span></Button>
-          <Button variant="kiGhost" onClick={() => startKamera('')} disabled={fotoBusy}>
+          {ki.vision && <Button variant="kiGhost" onClick={() => startKamera('')} disabled={fotoBusy}>
             {fotoBusy ? <Spinner /> : <span className="inline-flex items-center gap-1"><Icon name="sparkles" size={16} /><Icon name="camera" size={16} /> Erfassen</span>}
-          </Button>
+          </Button>}
           <Button onClick={() => { setForm(leer); setMehrfach(false); setAdd(true) }}>+ Hinzufügen</Button>
         </div>
       </div>
@@ -505,14 +507,18 @@ export default function Vorrat({ notify }) {
                       <button title="Umbenennen"
                         onClick={() => { const n = window.prompt('Lagerort umbenennen:', g.lo.name); if (n && n.trim() && n.trim() !== g.lo.name) renameLagerort(g.lo.id, n.trim()) }}
                         className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-xs font-semibold text-ink/60 hover:bg-line/30"><Icon name="pencil" size={16} /> Umbenennen</button>
+                      {ki.vision && <>
                       <button title="Per Foto ergänzen" onClick={() => startKamera(g.lo.id)} disabled={fotoBusy}
                         className="inline-flex items-center gap-1 rounded-lg border border-terracotta/50 px-2 py-1 text-xs font-semibold text-terracotta hover:bg-terracotta/10 disabled:opacity-50"><Icon name="sparkles" size={16} /><Icon name="camera" size={16} /> ergänzen</button>
                       <button title="Per Foto neu erfassen (löscht vorhandene)" onClick={() => kameraNeuErfassen(g.lo)} disabled={fotoBusy}
                         className="inline-flex items-center gap-1 rounded-lg border border-terracotta/50 px-2 py-1 text-xs font-semibold text-terracotta hover:bg-terracotta/10 disabled:opacity-50"><Icon name="sparkles" size={16} /><Icon name="camera" size={16} /> neu erfassen</button>
+                      </>}
                     </div>
                   )}
                   {g.items.length === 0
-                    ? <p className="bg-paper/30 px-4 py-3 text-sm text-ink/45">Noch nichts erfasst – „<Icon name="sparkles" size={16} className="inline align-text-bottom" /><Icon name="camera" size={16} className="inline align-text-bottom" /> ergänzen" zum Befüllen.</p>
+                    ? <p className="bg-paper/30 px-4 py-3 text-sm text-ink/45">{ki.vision
+                        ? <>Noch nichts erfasst – „<Icon name="sparkles" size={16} className="inline align-text-bottom" /><Icon name="camera" size={16} className="inline align-text-bottom" /> ergänzen" zum Befüllen.</>
+                        : 'Noch nichts erfasst – über „+ Hinzufügen" befüllen.'}</p>
                     : <div className="divide-y divide-line/50 bg-paper/30">{g.items.map((it) => <VorratZeile key={it.id} it={it} onEdit={startEdit} onLoeschen={loeschen} />)}</div>}
                 </>
               )}

@@ -3,6 +3,7 @@ import { api } from '../api.js'
 import { Spinner, Empty, Modal, Button, input, confirmDialog } from '../ui.jsx'
 import { isoHeute } from '../utils.js'
 import { Generator } from './Start.jsx'
+import { useKi } from '../kiStatus.js'
 import { Icon } from '../icons.jsx'
 
 function fmtPreis(p) {
@@ -22,6 +23,7 @@ function fmtTag(iso) {
 // Kategorie → Name, in aufklappbaren Kategorie-Gruppen.
 export default function Angebote({ notify, auth, openRezept }) {
   const [genFuer, setGenFuer] = useState(null)   // Artikel -> Rezept mit Pflichtzutat erstellen
+  const ki = useKi()   // ohne Vision-KI: nur JSON-Import (keine Prospekt-Erkennung)
   const isAdmin = auth?.user?.plattform_rolle === 'super_admin'
   const darfUpload = isAdmin || !!auth?.user?.darf_angebote_upload
   const [angebote, setAngebote] = useState(null)
@@ -288,7 +290,7 @@ export default function Angebote({ notify, auth, openRezept }) {
     <>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-3">
       <h2 className="font-display text-3xl">Angebote</h2>
-      {darfUpload && <Button variant="ki" onClick={() => setSetup({ markt: '', von: '', bis: '' })}>+ Prospekt importieren</Button>}
+      {darfUpload && <Button variant={ki.vision ? 'ki' : 'ghost'} onClick={() => setSetup({ markt: '', von: '', bis: '' })}>{ki.vision ? '+ Prospekt importieren' : '+ Angebote importieren (JSON)'}</Button>}
     </div>
     {angebote && angebote.length > 0 && (
       <div className="mb-4">
@@ -306,7 +308,7 @@ export default function Angebote({ notify, auth, openRezept }) {
     <input
       ref={fileRef}
       type="file"
-      accept="image/*,application/pdf,application/json,.json"
+      accept={ki.vision ? 'image/*,application/pdf,application/json,.json' : 'application/json,.json'}
       multiple
       className="hidden"
       onChange={(e) => { const fs = Array.from(e.target.files || []); e.target.value = ''; if (fs.length) starteBatch(fs) }}
@@ -332,7 +334,7 @@ export default function Angebote({ notify, auth, openRezept }) {
     {angebote === null ? (
       <div className="flex justify-center py-10"><Spinner /></div>
     ) : angebote.length === 0 ? (
-      <Empty>Keine aktuellen oder kommenden Angebote. Importiere oben einen Prospekt (Foto/PDF) – oder über den Assistenten.</Empty>
+      <Empty>{ki.vision ? 'Keine aktuellen oder kommenden Angebote. Importiere oben einen Prospekt (Foto/PDF)' + (ki.text ? ' – oder über den Assistenten.' : '.') : 'Keine aktuellen oder kommenden Angebote.'}</Empty>
     ) : (
     <div className="space-y-8">
       {marktListe.map(([markt, items]) => {
@@ -507,9 +509,9 @@ export default function Angebote({ notify, auth, openRezept }) {
               {dialog.a.einheit ? ' / ' + dialog.a.einheit : ''}
             </p>
           )}
-          <Button variant="ki" className="w-full inline-flex items-center justify-center gap-1" onClick={() => { const a = dialog.a; setDialog(null); setGenFuer(a) }}>
+          {ki.text && <Button variant="ki" className="w-full inline-flex items-center justify-center gap-1" onClick={() => { const a = dialog.a; setDialog(null); setGenFuer(a) }}>
             <Icon name="sparkles" size={16} /> Rezept mit diesem Artikel erstellen
-          </Button>
+          </Button>}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" onClick={() => setDialog(null)}>Abbrechen</Button>
             <Button onClick={bestaetigen} disabled={busy}>
@@ -520,7 +522,7 @@ export default function Angebote({ notify, auth, openRezept }) {
       </Modal>
     )}
 
-    {genFuer && (
+    {genFuer && ki.text && (
       <Generator
         notify={notify}
         openRezept={openRezept || (() => {})}
@@ -531,13 +533,20 @@ export default function Angebote({ notify, auth, openRezept }) {
     )}
 
     {setup && (
-      <Modal open onClose={() => setSetup(null)} title="Prospekt importieren">
+      <Modal open onClose={() => setSetup(null)} title={ki.vision ? 'Prospekt importieren' : 'Angebote importieren'}>
         <div className="space-y-3">
-          <p className="text-sm text-ink/60">
-            Lade ein oder <b>mehrere</b> Prospekte hoch – als Foto, PDF oder JSON. Markt und Zeitraum
-            erkennt die KI automatisch; du kannst sie optional vorgeben. Wochenend-Angebote werden
-            trotzdem je Angebot erkannt.
-          </p>
+          {ki.vision ? (
+            <p className="text-sm text-ink/60">
+              Lade ein oder <b>mehrere</b> Prospekte hoch – als Foto, PDF oder JSON. Markt und Zeitraum
+              erkennt die KI automatisch; du kannst sie optional vorgeben. Wochenend-Angebote werden
+              trotzdem je Angebot erkannt.
+            </p>
+          ) : (
+            <p className="text-sm text-ink/60">
+              Lade eine oder <b>mehrere</b> Angebotsdateien im JSON-Format hoch. Die Erkennung von
+              Foto-/PDF-Prospekten braucht eine KI und ist auf diesem Server nicht eingerichtet.
+            </p>
+          )}
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-ink/55">Markt (optional)</span>
             <input className={input} placeholder="z.B. Supermarkt Beispiel" value={setup.markt} onChange={(e) => setSetup((s) => ({ ...s, markt: e.target.value }))} />
@@ -552,8 +561,8 @@ export default function Angebote({ notify, auth, openRezept }) {
               <input className={input} type="date" value={setup.bis} onChange={(e) => setSetup((s) => ({ ...s, bis: e.target.value }))} />
             </label>
           </div>
-          <Button variant="ki" onClick={() => fileRef.current?.click()} className="w-full">Dateien wählen & importieren</Button>
-          <p className="text-xs text-ink/45">Mehrfachauswahl möglich · Formate: Foto (JPG/PNG), PDF, JSON.</p>
+          <Button variant={ki.vision ? 'ki' : 'primary'} onClick={() => fileRef.current?.click()} className="w-full">Dateien wählen & importieren</Button>
+          <p className="text-xs text-ink/45">Mehrfachauswahl möglich · Formate: {ki.vision ? 'Foto (JPG/PNG), PDF, JSON' : 'JSON'}.</p>
         </div>
       </Modal>
     )}

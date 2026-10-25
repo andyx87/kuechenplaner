@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button, Spinner, input } from '../ui.jsx'
 import { api } from '../api.js'
-import { SPRACHE_AKTIV } from '../settings.js'
+import { useKi } from '../kiStatus.js'
 import { Icon } from '../icons.jsx'
 
 const BEISPIELE = [
@@ -64,6 +64,7 @@ function Bubble({ m }) {
 // Präsentations-Komponente: Verlauf/Senden/Status kommen aus dem useChat-Hook (App-Ebene),
 // damit eine laufende Anfrage das Schließen des Fensters überlebt.
 export default function Chat({ messages, loading, senden, leeren, notify, onClose, heightClass = 'h-[72vh]' }) {
+  const ki = useKi()
   const [text, setText] = useState('')
   const [anhaenge, setAnhaenge] = useState([]) // [{data, media_type, name}]
   const endRef = useRef(null)
@@ -165,9 +166,8 @@ export default function Chat({ messages, loading, senden, leeren, notify, onClos
         {messages.length === 0 && !loading && (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
             <p className="text-muted">
-              Frag mich nach Vorrat, Wochenplan oder Rezepten – oder häng Fotos an,
-              um Vorräte, Rezepte oder Angebote zu erfassen. Für Angebote am besten den
-              Prospekt als PDF oder mehrere Fotos/Screenshots anhängen.
+              Frag mich nach Vorrat, Wochenplan oder Rezepten
+              {ki.vision ? ' – oder häng Fotos an, um Vorräte, Rezepte oder Angebote zu erfassen. Für Angebote am besten den Prospekt als PDF oder mehrere Fotos/Screenshots anhängen.' : '.'}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {BEISPIELE.map((b) => (
@@ -211,14 +211,14 @@ export default function Chat({ messages, loading, senden, leeren, notify, onClos
       )}
 
       <div className="mt-2 flex items-end gap-2">
-        <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={dateiWaehlen} />
-        <button
+        {ki.vision && <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={dateiWaehlen} />}
+        {ki.vision && <button
           onClick={() => fileRef.current?.click()}
           className="shrink-0 rounded-full border border-line bg-card px-3 py-2 text-lg hover:border-terracotta/50"
           aria-label="Fotos, Screenshots oder PDF anhängen (mehrere möglich)"
           title="Fotos, Screenshots oder PDF anhängen (mehrere möglich)"
-        ><Icon name="paperclip" size={18} /></button>
-        {SPRACHE_AKTIV && (
+        ><Icon name="paperclip" size={18} /></button>}
+        {ki.sprache && typeof window.MediaRecorder !== 'undefined' && (
           <button
             onClick={toggleSpracheingabe}
             disabled={transkribiert}

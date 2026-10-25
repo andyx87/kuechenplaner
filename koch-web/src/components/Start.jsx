@@ -5,6 +5,7 @@ import { Icon } from '../icons.jsx'
 import { isoHeute } from '../utils.js'
 import PortionenWahl from './PortionenWahl.jsx'
 import { RezeptThumb } from './Rezepte.jsx'
+import { useKi } from '../kiStatus.js'
 
 const MAHLZEITEN = ['Frühstück', 'Mittag', 'Abendessen', 'Snack', 'Unterwegs']
 const STERN_VOLL = '#d4a454'
@@ -20,6 +21,7 @@ function fmtMenge(m) {
 }
 
 export default function Start({ notify, openRezept, vorratAktiv = true }) {
+  const ki = useKi()
   const [data, setData] = useState(null)
   const [genOffen, setGenOffen] = useState(false)
   const [tab, setTab] = useState('vorrat')   // 'vorrat' | 'angebote'
@@ -54,10 +56,10 @@ export default function Start({ notify, openRezept, vorratAktiv = true }) {
 
   // Externer Trigger (z.B. Onboarding-Abschluss „Erstes Rezept erstellen").
   useEffect(() => {
-    const h = () => setGenOffen(true)
+    const h = () => { if (ki.text) setGenOffen(true) }
     window.addEventListener('koch:rezept-erstellen', h)
     return () => window.removeEventListener('koch:rezept-erstellen', h)
-  }, [])
+  }, [ki.text])
 
   if (!data) return <div className="flex justify-center py-16"><Spinner /></div>
 
@@ -75,16 +77,27 @@ export default function Start({ notify, openRezept, vorratAktiv = true }) {
         <div className="hero-card space-y-3 rounded-[22px] p-6 text-center">
           <div className="hero-glow" />
           <h2 className="font-dish text-4xl leading-tight text-ink">Was kochen wir heute?</h2>
-          <p className="mx-auto max-w-md text-sm text-muted">
-            Lass dir aus deinem Vorrat, deinen Geräten & aktuellen Angeboten ein Rezept erstellen –
-            oder frag unten den Assistenten.
-          </p>
-          <Button variant="ki" className="mx-auto" onClick={() => setGenOffen(true)}><span className="inline-flex items-center gap-1"><Icon name="sparkles" size={16} /> Erstes Rezept erstellen</span></Button>
-          <p className="mx-auto inline-flex max-w-md flex-wrap items-center gap-1 text-xs text-muted2">
-            Tipp: Im <Icon name="message-circle" size={16} /> Assistenten (unten) kannst du auch ein Foto/PDF von Vorrat oder Prospekt anhängen.
-          </p>
+          {ki.text ? (
+            <>
+              <p className="mx-auto max-w-md text-sm text-muted">
+                Lass dir aus deinem Vorrat, deinen Geräten & aktuellen Angeboten ein Rezept erstellen –
+                oder frag unten den Assistenten.
+              </p>
+              <Button variant="ki" className="mx-auto" onClick={() => setGenOffen(true)}><span className="inline-flex items-center gap-1"><Icon name="sparkles" size={16} /> Erstes Rezept erstellen</span></Button>
+              {ki.vision && (
+                <p className="mx-auto inline-flex max-w-md flex-wrap items-center gap-1 text-xs text-muted2">
+                  Tipp: Im <Icon name="message-circle" size={16} /> Assistenten (unten) kannst du auch ein Foto/PDF von Vorrat oder Prospekt anhängen.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="mx-auto max-w-md text-sm text-muted">
+              Lege unter <b>Rezepte</b> deine ersten Rezepte an, pflege deinen Vorrat und plane
+              deine Woche – hier erscheinen dann passende Vorschläge.
+            </p>
+          )}
         </div>
-        {genOffen && <Generator notify={notify} openRezept={openRezept} vorratAktiv={vorratAktiv} onClose={() => setGenOffen(false)} />}
+        {genOffen && ki.text && <Generator notify={notify} openRezept={openRezept} vorratAktiv={vorratAktiv} onClose={() => setGenOffen(false)} />}
       </div>
     )
   }
@@ -107,15 +120,15 @@ export default function Start({ notify, openRezept, vorratAktiv = true }) {
 
   return (
     <div className="space-y-6">
-      {/* Rezept-Generator – Hero */}
-      <div className="hero-card flex items-center justify-between gap-3 rounded-[22px] p-5">
+      {/* Rezept-Generator – Hero (nur mit Text-KI) */}
+      {ki.text && <div className="hero-card flex items-center justify-between gap-3 rounded-[22px] p-5">
         <div className="hero-glow" />
         <div className="relative">
           <h3 className="font-dish text-2xl leading-tight text-ink">Was kochen wir heute?</h3>
           <p className="label-mono mt-1.5 text-muted2">Vorrat · Geräte · Angebote</p>
         </div>
         <Button variant="ki" className="relative shrink-0" onClick={() => setGenOffen(true)}><span className="inline-flex items-center gap-1"><Icon name="sparkles" size={16} /> Rezept erstellen</span></Button>
-      </div>
+      </div>}
 
       {/* Als Nächstes geplant – Kachelbreite passt sich der Anzahl an (1=voll, 2=halb, 3=Drittel), max. 3 */}
       {nm && nm.rezepte?.length > 0 && (() => {
@@ -265,7 +278,7 @@ export default function Start({ notify, openRezept, vorratAktiv = true }) {
           )
         })()}
       </section>
-      ) : (
+      ) : !ki.text ? null : (
       <section className="space-y-2">
         <h3 className="flex items-center gap-2 font-display text-xl"><Icon name="chef-hat" size={18} /> Aus deinen Zutaten</h3>
         <p className="text-sm text-muted">Gib ein, was du gerade da hast – Topfplan macht dir daraus einen Rezept-Vorschlag.</p>
@@ -279,14 +292,15 @@ export default function Start({ notify, openRezept, vorratAktiv = true }) {
       </section>
       ))}
 
-      {genOffen && <Generator notify={notify} openRezept={openRezept} vorratAktiv={vorratAktiv} onClose={() => setGenOffen(false)} />}
-      {genFreitext !== null && <Generator notify={notify} openRezept={openRezept} vorratAktiv={vorratAktiv} initialFreitext={genFreitext} onClose={() => setGenFreitext(null)} />}
+      {genOffen && ki.text && <Generator notify={notify} openRezept={openRezept} vorratAktiv={vorratAktiv} onClose={() => setGenOffen(false)} />}
+      {genFreitext !== null && ki.text && <Generator notify={notify} openRezept={openRezept} vorratAktiv={vorratAktiv} initialFreitext={genFreitext} onClose={() => setGenFreitext(null)} />}
     </div>
   )
 }
 
 // ── KI-Rezept-Generator ──
 export function Generator({ notify, openRezept, vorratAktiv = true, onClose, initialWunsch = '', initialFreitext = '' }) {
+  const ki = useKi()
   const [wunsch, setWunsch] = useState(initialWunsch)
   const [maerkte, setMaerkte] = useState([])                  // verfügbare Händler mit Angeboten
   const [haendler, setHaendler] = useState([])                // ausgewählte Händler (Mehrfach)
@@ -320,8 +334,8 @@ export function Generator({ notify, openRezept, vorratAktiv = true, onClose, ini
       if (res.error) { notify(res.error, 'err'); return }
       setRezept(res.rezept)
       setZutatAngebote(res.zutat_angebote || {})
-    } catch {
-      notify('Rezept-Generierung fehlgeschlagen', 'err')
+    } catch (e) {
+      notify(e?.kiNichtEingerichtet ? e.message : 'Rezept-Generierung fehlgeschlagen', 'err')
     } finally {
       setBusy(false)
     }
@@ -347,7 +361,7 @@ export function Generator({ notify, openRezept, vorratAktiv = true, onClose, ini
       })
       setSavedId(r.id)
       notify(`„${rezept.name}" in die Bibliothek übernommen`)
-      if (bildWunsch) {
+      if (bildWunsch && ki.bild) {
         api.rezeptBildGenerieren(r.id).then(() => notify('Bild zum Rezept erstellt')).catch(() => {})
       }
       return r.id
@@ -428,14 +442,14 @@ export function Generator({ notify, openRezept, vorratAktiv = true, onClose, ini
             <p className="mt-1 text-[11px] text-ink/45">Mehrfachauswahl möglich. Keine Auswahl = ohne Angebote.</p>
           </div>
         )}
-        {/* Bild ist optional – pro Rezept abwählbar. */}
-        <label className="flex cursor-pointer items-start gap-2 text-sm">
+        {/* Bild ist optional – pro Rezept abwählbar (nur mit Bild-KI). */}
+        {ki.bild && <label className="flex cursor-pointer items-start gap-2 text-sm">
           <input type="checkbox" checked={bildWunsch} onChange={(e) => setBildWunsch(e.target.checked)} className="mt-0.5 h-4 w-4 accent-terracotta" />
           <span>
             <span className="inline-flex items-center gap-1"><Icon name="image" size={16} /> Bild zum Rezept erzeugen</span>
             <span className="block text-[11px] text-ink/45">Du kannst auch jederzeit später eines erzeugen oder ein eigenes Foto hochladen.</span>
           </span>
-        </label>
+        </label>}
         <p className="text-xs text-ink/45">Heutige Küchengeräte und die Vorlieben/Allergien des Haushalts werden immer beachtet.</p>
 
         <Button variant="ki" onClick={generieren} disabled={busy} className="w-full">
@@ -515,7 +529,7 @@ export function Generator({ notify, openRezept, vorratAktiv = true, onClose, ini
                 <Button onClick={uebernehmen} disabled={!!savedId}>{savedId ? <span className="inline-flex items-center gap-1"><Icon name="check" size={16} /> Gespeichert</span> : <span className="inline-flex items-center gap-1"><Icon name="download" size={16} /> In Bibliothek</span>}</Button>
                 <Button variant="ghost" onClick={() => setPlanOffen(true)}><span className="inline-flex items-center gap-1"><Icon name="calendar" size={16} /> Einplanen</span></Button>
                 {savedId && openRezept && <Button variant="ghost" onClick={() => { onClose(); openRezept(savedId) }}>Öffnen</Button>}
-                {savedId && <Button variant="ghost" onClick={bildNeu} disabled={bildBusy}>{bildBusy ? <Spinner /> : (bildWunsch
+                {savedId && ki.bild && <Button variant="ghost" onClick={bildNeu} disabled={bildBusy}>{bildBusy ? <Spinner /> : (bildWunsch
                   ? <span className="inline-flex items-center gap-1"><Icon name="refresh" size={16} /> Bild neu</span>
                   : <span className="inline-flex items-center gap-1"><Icon name="image" size={16} /> Bild erzeugen</span>)}</Button>}
               </div>

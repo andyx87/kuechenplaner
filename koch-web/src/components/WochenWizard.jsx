@@ -3,6 +3,7 @@ import { api } from '../api.js'
 import { Modal, Button, Spinner } from '../ui.jsx'
 import { istAnwesend } from '../utils.js'
 import { Icon } from '../icons.jsx'
+import { useKi } from '../kiStatus.js'
 
 const MAHLZEITEN = ['Frühstück', 'Mittag', 'Abendessen', 'Snack', 'Unterwegs']
 const MAHLZEIT_ICON_NAME = { 'Frühstück': 'sunrise', 'Mittag': 'sun', 'Abendessen': 'moon', 'Snack': 'apple', 'Unterwegs': 'backpack' }
@@ -15,6 +16,7 @@ const dlabel = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('de-DE', 
 // Geführter Wochenplanungs-Assistent: Einkaufstage+Märkte → Mahlzeiten+Personen →
 // KI generiert je Mahlzeit ein Rezept → Review → speichern & in den Plan eintragen.
 export default function WochenWizard({ tage, personen, onClose, onDone, notify }) {
+  const ki = useKi()
   const [step, setStep] = useState(1)
   const [tagMaerkte, setTagMaerkte] = useState({})          // datum -> [{haendler,anzahl}]
   const [einkauf, setEinkauf] = useState({})                // datum -> { aktiv, haendler:[] }
@@ -119,7 +121,7 @@ export default function WochenWizard({ tage, personen, onClose, onDone, notify }
           zubereitung: it.rezept.zubereitung || [],
         })
         await api.planEintragAnlegen({ datum: it.datum, mahlzeit: it.mahlzeit, rezept_id: neu.id, person_ids: it.person_ids })
-        if (bildWunsch) api.rezeptBildGenerieren(neu.id).catch(() => {})  // Bild im Hintergrund
+        if (bildWunsch && ki.bild) api.rezeptBildGenerieren(neu.id).catch(() => {})  // Bild im Hintergrund
         n++
       }
       notify(`Woche geplant – ${n} Rezept${n === 1 ? '' : 'e'} erstellt & eingetragen`)
@@ -253,13 +255,13 @@ export default function WochenWizard({ tage, personen, onClose, onDone, notify }
                 </div>
               ))}
             </div>
-            <label className="flex cursor-pointer items-start gap-2 text-sm">
+            {ki.bild && <label className="flex cursor-pointer items-start gap-2 text-sm">
               <input type="checkbox" checked={bildWunsch} onChange={(e) => setBildWunsch(e.target.checked)} className="mt-0.5 h-4 w-4 accent-terracotta" />
               <span>
                 <span className="inline-flex items-center gap-1"><Icon name="image" size={16} /> Bilder zu den Rezepten erzeugen</span>
                 <span className="block text-[11px] text-muted2">Je Rezept ein KI-Bild. Später jederzeit nachholbar.</span>
               </span>
-            </label>
+            </label>}
             <div className="flex justify-between gap-2">
               <Button variant="ghost" onClick={() => setStep(2)}>Zurück</Button>
               <Button onClick={uebernehmen} disabled={saving || !results.some((r) => r.rezept)} className="inline-flex items-center gap-1">

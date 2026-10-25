@@ -16,8 +16,9 @@ import BugReport from './components/BugReport.jsx'
 import { Modal, Spinner, ConfirmHost, confirmDialog } from './ui.jsx'
 import { Icon } from './icons.jsx'
 import * as backnav from './backnav.js'
-import { api } from './api.js'
+import { api, KI_NICHT_EINGERICHTET } from './api.js'
 import { useChat } from './useChat.js'
+import { useKi, ladeKiStatus } from './kiStatus.js'
 import { getVorratAktiv, setVorratAktiv, getAbhakModus, setAbhakModus, getTheme, setTheme } from './settings.js'
 import { posKey, ladeErledigt, bereinigeErledigt } from './einkaufErledigt.js'
 
@@ -213,11 +214,32 @@ export default function App({ auth, onLogout }) {
     setAbhakModusState(m)
   }
 
+  // KI-Fähigkeiten der Instanz: nach Login bzw. Konto-/Nutzerwechsel neu laden.
+  const ki = useKi()
+  useEffect(() => { ladeKiStatus() }, [auth?.account?.id, auth?.user?.id])
+  // Schlägt ein KI-Aufruf mit „nicht eingerichtet" fehl (s. api.js), zeigt App EINE
+  // freundliche Meldung; generische Fehler-Toasts der Aufrufer kurz danach werden unterdrückt.
+  const kiFehltBis = useRef(0)
+
   const notify = useCallback((text, kind = 'ok', action = null) => {
+    if (kind === 'err' && Date.now() < kiFehltBis.current && text !== KI_NICHT_EINGERICHTET) return
     const id = Date.now() + Math.random()
     setToast({ text, kind, id, action })
     setTimeout(() => setToast((t) => (t && t.id === id ? null : t)), action ? 6500 : 5000)
   }, [])
+
+  useEffect(() => {
+    const h = () => {
+      kiFehltBis.current = 0
+      notify(KI_NICHT_EINGERICHTET, 'err')
+      kiFehltBis.current = Date.now() + 2500
+      ladeKiStatus()   // Status könnte veraltet sein → UI blendet die Funktion danach aus
+    }
+    window.addEventListener('koch:ki-fehlt', h)
+    return () => window.removeEventListener('koch:ki-fehlt', h)
+  }, [notify])
+  // Chat ohne Text-KI schließen (z. B. nach Status-Neuladen).
+  useEffect(() => { if (!ki.text) setChatOffen(false) }, [ki.text])
 
   // Chat-Zustand auf App-Ebene: läuft weiter, auch wenn das Fenster zu ist.
   const chat = useChat(notify)
@@ -309,8 +331,8 @@ export default function App({ auth, onLogout }) {
         {gruppe === 'haushalt' && <Haushalt notify={notify} superAdmin={auth?.user?.plattform_rolle === 'super_admin'} />}
       </main>
 
-      {/* Assistent als schwebender Button über der Tab-Leiste */}
-      <button
+      {/* Assistent als schwebender Button über der Tab-Leiste (nur mit Text-KI) */}
+      {ki.text && <button
         onClick={() => setChatOffen(true)}
         aria-label="Assistent öffnen" title="Assistent"
         className={`fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full text-2xl shadow-glow transition ${
@@ -319,11 +341,11 @@ export default function App({ auth, onLogout }) {
         style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.9rem)' }}
       >
         {chatHinweis === 'laeuft' ? <Spinner /> : <Icon name="message-circle" size={26} />}
-      </button>
+      </button>}
 
       {/* Untere Tab-Leiste (Haupt-Navigation) */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card/95 shadow-soft backdrop-blur">
-        {chatHinweis && !chatOffen && (
+        {ki.text && chatHinweis && !chatOffen && (
           <button
             onClick={() => setChatOffen(true)}
             className={`flex w-full items-center justify-center gap-2 border-b border-line px-4 py-1.5 text-xs font-semibold ${
@@ -478,7 +500,7 @@ export default function App({ auth, onLogout }) {
             })()}
 
             <p className="pt-2 text-xs font-bold uppercase tracking-wide text-ink/40">KI-Assistent</p>
-            {chatMemory !== null && (
+            {ki.text && chatMemory !== null && (
               <label className="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
@@ -496,7 +518,7 @@ export default function App({ auth, onLogout }) {
               </label>
             )}
 
-            {autoBild !== null && (
+            {ki.bild && autoBild !== null && (
               <label className="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
@@ -603,7 +625,7 @@ export default function App({ auth, onLogout }) {
         />
       )}
 
-      {chatOffen && (
+      {chatOffen && ki.text && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4">
           <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setChatOffen(false)} />
           <div className="relative z-10 flex h-[88vh] w-full flex-col rounded-t-3xl border border-line bg-card p-4 shadow-soft sm:h-[80vh] sm:max-w-2xl sm:rounded-3xl">

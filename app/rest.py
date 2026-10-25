@@ -1216,7 +1216,10 @@ async def angebote_import_datei(
     Prospekt mit speichern (etwas teurer, da Vision pro Seite). Gibt job_id zurueck."""
     if not await userauth.darf_angebote_upload(ctx["user_id"]):
         raise HTTPException(403, "Angebots-Upload für dieses Konto nicht freigeschaltet")
-    ki.modell_fuer_zweck("angebote-import")  # 503, wenn kein (Prospekt-/Vision-)Modell eingerichtet ist
+    if not (datei.filename or "").lower().endswith(".json"):
+        # Prospekt (PDF/Bild) braucht ein Prospekt-/Vision-Modell -> sonst 503. JSON geht auch
+        # ohne KI (die KI-Nachbearbeitung wird dann übersprungen, s. angebote_import._run).
+        ki.modell_fuer_zweck("angebote-import")
     # Der aufwendigste KI-Zweck (1 Modellaufruf je Seite, bis 24 Seiten) bekommt eine
     # Obergrenze je Nutzer: 10 Prospekte/Tag decken jeden realen Haushalt.
     ratelimit.pruefe(f"angebote-import:user:{ctx['user_id']}", limit=10, fenster_s=86400)

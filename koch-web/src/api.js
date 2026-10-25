@@ -1,6 +1,28 @@
 const BASE = import.meta.env.VITE_API_BASE || ''
 const TOKEN_KEY = 'koch_token'
 
+// Antwortet das Backend mit 503 {fehler:'ki_nicht_konfiguriert'}, ist die KI-Funktion auf
+// dieser Instanz nicht eingerichtet → freundliche Meldung statt Rohfehler.
+export const KI_NICHT_EINGERICHTET = 'Diese KI-Funktion ist auf diesem Server nicht eingerichtet.'
+function kiFehler(status, body) {
+  if (status === 503 && body && body.fehler === 'ki_nicht_konfiguriert') {
+    const e = new Error(KI_NICHT_EINGERICHTET); e.status = 503; e.body = body; e.kiNichtEingerichtet = true
+    // App zeigt die Meldung zentral und lädt /ki/status neu (s. App.jsx).
+    try { window.dispatchEvent(new CustomEvent('koch:ki-fehlt', { detail: body })) } catch { /* ignore */ }
+    return e
+  }
+  return null
+}
+// Fehlerbehandlung für die direkten fetch()-Aufrufe (Upload-Endpunkte).
+async function fetchFehler(r, fallback) {
+  let body = null
+  try { if ((r.headers.get('content-type') || '').includes('application/json')) body = await r.json() } catch { /* ignore */ }
+  const ki = kiFehler(r.status, body)
+  if (ki) return ki
+  const e = new Error((body && (body.meldung || body.fehler || body.detail)) || fallback); e.status = r.status; e.body = body
+  return e
+}
+
 function getToken() { try { return localStorage.getItem(TOKEN_KEY) } catch { return null } }
 function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY) } catch { /* ignore */ } }
 export function authHeader() { const t = getToken(); return t ? { Authorization: 'Bearer ' + t } : {} }
@@ -17,6 +39,8 @@ async function req(path, opts = {}) {
       // strukturierter Fehler → body + status anhängen
       let body = null
       try { body = await res.json() } catch { /* ignore */ }
+      const ki = kiFehler(res.status, body)
+      if (ki) throw ki
       const e = new Error((body && (body.fehler || body.detail)) || res.statusText)
       e.status = res.status; e.body = body; throw e
     }
@@ -117,16 +141,16 @@ export const api = {
   foto: (file) => {
     const fd = new FormData()
     fd.append('datei', file)
-    return fetch(BASE + '/api/vorrat/foto', { method: 'POST', body: fd, headers: authHeader() }).then((r) => {
-      if (!r.ok) throw new Error('Foto fehlgeschlagen')
+    return fetch(BASE + '/api/vorrat/foto', { method: 'POST', body: fd, headers: authHeader() }).then(async (r) => {
+      if (!r.ok) throw await fetchFehler(r, 'Foto fehlgeschlagen')
       return r.json()
     })
   },
   geraeteFoto: (file) => {
     const fd = new FormData()
     fd.append('datei', file)
-    return fetch(BASE + '/api/geraete/foto', { method: 'POST', body: fd, headers: authHeader() }).then((r) => {
-      if (!r.ok) throw new Error('Foto fehlgeschlagen')
+    return fetch(BASE + '/api/geraete/foto', { method: 'POST', body: fd, headers: authHeader() }).then(async (r) => {
+      if (!r.ok) throw await fetchFehler(r, 'Foto fehlgeschlagen')
       return r.json()
     })
   },
@@ -140,7 +164,7 @@ export const api = {
     const fd = new FormData()
     fd.append('datei', blob, 'sprache.webm')
     return fetch(BASE + '/api/chat/transkribieren', { method: 'POST', body: fd, headers: authHeader() })
-      .then((r) => { if (!r.ok) throw new Error('Transkription fehlgeschlagen'); return r.json() })
+      .then(async (r) => { if (!r.ok) throw await fetchFehler(r, 'Transkription fehlgeschlagen'); return r.json() })
   },
   rezeptKategorien: () => req('/rezepte/kategorien'),
   rezept: (id) => req('/rezepte/' + id),
@@ -217,7 +241,11 @@ export const api = {
       xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)) }
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) { try { resolve(JSON.parse(xhr.responseText)) } catch { resolve({}) } }
-        else reject(new Error(xhr.responseText || xhr.statusText))
+        else {
+          let body = null
+          try { body = JSON.parse(xhr.responseText) } catch { /* ignore */ }
+          reject(kiFehler(xhr.status, body) || new Error(xhr.responseText || xhr.statusText))
+        }
       }
       xhr.onerror = () => reject(new Error('Upload fehlgeschlagen'))
       xhr.send(fd)
@@ -245,6 +273,9 @@ export const api = {
   zutatUmbenennen: (id, name) =>
     req('/zutaten/' + id + '/name', { method: 'PUT', body: JSON.stringify({ name }) }),
   zutatLoeschen: (id) => req('/zutaten/' + id, { method: 'DELETE' }),
+
+  // KI-Fähigkeiten dieser Instanz (s. kiStatus.js)
+  kiStatus: () => req('/ki/status'),
 
   // Chat (In-App-Assistent)
   chat: (history, message, images) =>

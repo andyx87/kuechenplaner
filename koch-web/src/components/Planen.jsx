@@ -7,6 +7,7 @@ import { Icon } from '../icons.jsx'
 import { RezeptDetailInhalt } from './RezeptDetail.jsx'
 import Einkaufsliste from './Einkaufsliste.jsx'
 import WochenWizard from './WochenWizard.jsx'
+import { useKi } from '../kiStatus.js'
 import { registerOverlay } from '../backnav.js'
 
 const MAHLZEITEN = ['Frühstück', 'Mittag', 'Abendessen', 'Snack', 'Unterwegs']
@@ -260,6 +261,7 @@ export default function Planen({ notify, openRezept }) {
   const [loading, setLoading] = useState(true)
   const [offenerSlot, setOffenerSlot] = useState(null) // {datum, mahlzeit, eintrag?, startPanel?} – Slot-Popup
   const [wizardOffen, setWizardOffen] = useState(false)
+  const ki = useKi()
   const [fokusTag, setFokusTag] = useState(() => isoHeute()) // gewählter Tag
   const [tagansicht, setTagansicht] = useState(false)        // false = 8-Button-Übersicht, true = Tag bearbeiten
 
@@ -380,12 +382,12 @@ export default function Planen({ notify, openRezept }) {
       ) : !tagansicht ? (
         /* Übersicht: 8 große Buttons (Mit KI planen + 7 Tage) */
         <div className="stagger grid grid-cols-2 gap-3">
-          <button onClick={() => setWizardOffen(true)}
+          {ki.text && <button onClick={() => setWizardOffen(true)}
             className="hero-card col-span-2 flex items-center gap-3.5 rounded-[18px] p-[17px] text-left transition active:scale-[0.99]">
             <div className="hero-glow" />
             <span className="relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl bg-terracotta/15 text-terracotta"><Icon name="sparkles" size={24} /></span>
             <span className="relative"><span className="block font-display text-base font-bold text-ink">Mit KI planen</span><span className="block text-sm text-muted">Ganze Woche automatisch vorschlagen lassen</span></span>
-          </button>
+          </button>}
           {tage.map((d) => {
             const dt = new Date(d + 'T00:00:00')
             const anzahl = plan.filter((e) => e.datum === d).length
@@ -490,7 +492,7 @@ export default function Planen({ notify, openRezept }) {
       )}
 
       {/* Geführte Wochenplanung */}
-      {wizardOffen && (
+      {wizardOffen && ki.text && (
         <WochenWizard
           tage={tage}
           personen={personen}
