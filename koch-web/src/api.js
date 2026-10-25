@@ -63,6 +63,15 @@ export const api = {
   passwortResetAnfordern: (email) => req('/auth/passwort-reset-anfordern', { method: 'POST', body: JSON.stringify({ email }) }),
   passwortReset: (token, password) => req('/auth/passwort-reset', { method: 'POST', body: JSON.stringify({ token, password }) }),
   emailVerifizieren: (token) => req('/auth/email-verifizieren', { method: 'POST', body: JSON.stringify({ token }) }),
+  // Claude & MCP: OAuth-Zustimmung, verbundene Apps, persönliche Zugriffstokens
+  mcpInfo: () => req('/mcp/info'),
+  oauthAnfrage: (id) => req('/oauth/anfrage/' + encodeURIComponent(id)),
+  oauthEntscheiden: (id, zustimmen, scopes) =>
+    req('/oauth/anfrage/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify({ zustimmen, scopes }) }),
+  verbindungen: () => req('/verbindungen'),
+  verbindungWiderrufen: (id) => req('/verbindungen/apps/' + id, { method: 'DELETE' }),
+  tokenErstellen: (name, scopes) => req('/verbindungen/tokens', { method: 'POST', body: JSON.stringify({ name, scopes }) }),
+  tokenWiderrufen: (id) => req('/verbindungen/tokens/' + id, { method: 'DELETE' }),
   // Einladungen (Familienmitglieder)
   einladungen: () => req('/einladungen'),
   einladungErstellen: (email = '') => req('/einladungen', { method: 'POST', body: JSON.stringify({ email }) }),

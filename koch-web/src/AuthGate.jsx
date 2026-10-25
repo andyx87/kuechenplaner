@@ -4,6 +4,7 @@ import App from './App.jsx'
 import Login from './components/Login.jsx'
 import EinladungAnnehmen from './components/EinladungAnnehmen.jsx'
 import KontoLoeschen from './components/KontoLoeschen.jsx'
+import Verbinden from './components/Verbinden.jsx'
 import { PasswortReset, EmailVerify } from './components/AuthAktionen.jsx'
 import { RechtSeite } from './components/Rechtliches.jsx'
 import { Spinner, Button } from './ui.jsx'
@@ -36,6 +37,13 @@ function rechtDocAusPfad() {
   return m ? m[1] : null
 }
 
+// OAuth-Zustimmung (Claude-Connector & Co.): /verbinden?anfrage=… – der Server leitet
+// /authorize hierher. Nicht angemeldet → erst Login, danach zurück zur Zustimmung.
+function verbindenAnfrage() {
+  if (!/^\/verbinden\/?$/.test(window.location.pathname)) return null
+  return new URLSearchParams(window.location.search).get('anfrage')
+}
+
 export default function AuthGate() {
   const params = new URLSearchParams(window.location.search)
   const rechtPfad = rechtDocAusPfad()
@@ -49,6 +57,7 @@ export default function AuthGate() {
     : rechtDoc ? 'recht' : einladungToken ? 'einladung' : resetToken ? 'reset' : verifyToken ? 'verify' : 'laedt'
   const [zustand, setZustand] = useState(start)  // 'laedt'|'recht'|'einladung'|'reset'|'verify'|'konto-loeschen'|'login'|'app'
   const [auth, setAuth] = useState(null)
+  const anfrage = verbindenAnfrage()
 
   const linkFlow = kontoLoeschen || rechtDoc || einladungToken || resetToken || verifyToken
   const zurPathname = () => { window.location.href = window.location.pathname }
@@ -114,6 +123,7 @@ export default function AuthGate() {
       <Button onClick={pruefeSitzung}>Erneut versuchen</Button>
     </div>
   )
+  if (anfrage && zustand === 'app') return <Verbinden anfrage={anfrage} auth={auth} onFertig={zurStartseite} />
   if (zustand === 'login') return (
     <Login onAuthed={(me) => { setAuth(me); setZustand('app') }} />
   )

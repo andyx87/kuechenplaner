@@ -3,6 +3,7 @@ import Vorrat from './components/Vorrat.jsx'
 import { RechtFooter } from './components/Rechtliches.jsx'
 import Rezepte from './components/Rezepte.jsx'
 import Haushalt from './components/Haushalt.jsx'
+import ClaudeVerbindungen from './components/ClaudeVerbindungen.jsx'
 import Planen from './components/Planen.jsx'
 import SpontanesKochen from './components/SpontanesKochen.jsx'
 import Einkaufsliste from './components/Einkaufsliste.jsx'
@@ -468,6 +469,8 @@ export default function App({ auth, onLogout }) {
               </span>
               <span className="shrink-0 text-ink/40">›</span>
             </button>
+
+            <ClaudeVerbindungen notify={notify} />
             {vorratModus !== null && (() => {
               const wahl = (vorratModus === 'light' || vorratAktiv === false) ? 'light' : 'voll'
               return (
