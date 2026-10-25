@@ -22,6 +22,9 @@ from .db import pool, acquire
 
 current_account: ContextVar[int | None] = ContextVar("current_account", default=None)
 current_user: ContextVar[int | None] = ContextVar("current_user", default=None)
+# True während eines MCP-Aufrufs: Plattform-Rollen (Super-Admin/Support) gelten dann NICHT.
+# MCP-Werkzeuge handeln ausschließlich im Haushalt des Token-Inhabers.
+mcp_kontext: ContextVar[bool] = ContextVar("mcp_kontext", default=False)
 
 _ph = PasswordHasher()
 SESSION_TAGE = 60
@@ -271,7 +274,7 @@ async def context_from_token(token: str | None) -> dict | None:
 
 
 async def ist_super_admin(user_id: int | None) -> bool:
-    if not user_id:
+    if not user_id or mcp_kontext.get():
         return False
     async with pool().acquire() as con:
         r = await con.fetchval("SELECT plattform_rolle FROM app_user WHERE id=$1", user_id)
@@ -316,7 +319,7 @@ async def darf_ki(user_id: int | None, account_id: int | None) -> bool:
 
 async def ist_admin_oder_support(user_id: int | None) -> bool:
     """True für Super-Admin ODER Support (dürfen z.B. Guthaben aufladen)."""
-    if not user_id:
+    if not user_id or mcp_kontext.get():
         return False
     async with pool().acquire() as con:
         r = await con.fetchval("SELECT plattform_rolle FROM app_user WHERE id=$1", user_id)

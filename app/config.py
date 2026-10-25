@@ -87,13 +87,32 @@ try:
 except ValueError:
     TRUSTED_PROXY_HOPS = 2
 
-# --- MCP-Endpunkt (/mcp, Streamable HTTP) ---
-# Secure-by-default AUS: Der MCP-Server exponiert vollständig mutierende Tools
-# (rezept_loeschen, vorrat_reduzieren, angebot_loeschen …) OHNE eigene Auth und
-# läuft ohne Auth-Kontext auf Konto 1 bzw. mit RLS-Bypass. Öffentlich erreichbar wäre
-# er damit anonym nutzbar → deshalb Default deaktiviert. Nur in einem vertrauenswürdigen
-# lokalen Netz per MCP_ENABLED=1 gezielt aktivieren. (Ein MCP-Connector mit OAuth ist geplant.)
-MCP_ENABLED = os.environ.get("MCP_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
+# --- MCP-Endpunkt (/mcp, Streamable HTTP) mit OAuth 2.1 ---
+# Der MCP-Server ist nur mit Anmeldung nutzbar: OAuth 2.1 (Claude-Connector, Dynamic Client
+# Registration, PKCE S256) oder persönliches Zugriffstoken (Einstellungen → Claude & MCP).
+# Jeder Aufruf läuft im Haushalt des Token-Inhabers unter Postgres-RLS. MCP_ENABLED=0
+# schaltet den Endpunkt samt OAuth-Routen ab.
+MCP_ENABLED = os.environ.get("MCP_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+
+# Öffentliche Basis-URL des Servers, unter der /mcp, /authorize, /token und
+# /.well-known/* erreichbar sind (Issuer + Ressource). Für Claude zwingend HTTPS und aus dem
+# Internet erreichbar. Leer = APP_BASE_URL (Web-App und API hinter demselben Origin).
+PUBLIC_URL = (os.environ.get("PUBLIC_URL") or APP_BASE_URL).strip().rstrip("/")
+
+# Zusätzlich erlaubte OAuth-Redirect-URIs (kommagetrennt, exakte Werte). Immer erlaubt:
+# die Claude-Callbacks (claude.ai/claude.com) und Loopback-Redirects (localhost/127.0.0.1,
+# beliebiger Port) für Desktop-Clients wie Claude Code.
+OAUTH_REDIRECT_URIS = [u.strip() for u in os.environ.get("OAUTH_REDIRECT_URIS", "").split(",") if u.strip()]
+# OAUTH_REDIRECT_FREI=1 erlaubt jede HTTPS-Redirect-URI (andere MCP-Clients). Standard: aus.
+OAUTH_REDIRECT_FREI = os.environ.get("OAUTH_REDIRECT_FREI", "0").strip().lower() in ("1", "true", "yes", "on")
+try:
+    OAUTH_ACCESS_TTL_S = max(300, int(os.environ.get("OAUTH_ACCESS_TTL_S", "3600")))
+except ValueError:
+    OAUTH_ACCESS_TTL_S = 3600
+try:
+    OAUTH_REFRESH_TTL_TAGE = max(1, int(os.environ.get("OAUTH_REFRESH_TTL_TAGE", "30")))
+except ValueError:
+    OAUTH_REFRESH_TTL_TAGE = 30
 
 # Oeffentlicher ICS-Speiseplan-Feed: eigener Token (in der Abo-URL), damit Google
 # Kalender den Feed ohne vorgeschalteten Login abrufen kann. Steht die App hinter

@@ -26,17 +26,19 @@ if config.SENTRY_DSN:
     )
     log.info("Sentry aktiviert (environment=%s).", config.SENTRY_ENV)
 
-# ASGI-App des MCP-Servers (Streamable HTTP). Intern unter "/" gemountet -> Endpunkt /mcp.
-# Nur wenn MCP_ENABLED gesetzt ist (secure-by-default AUS, s. config.MCP_ENABLED):
-# In der Cloud bleibt /mcp ungemountet, damit der ungeschuetzte Endpunkt nicht
-# oeffentlich erreichbar ist. Der Import erfolgt bewusst erst hier (nur bei Bedarf).
+# MCP-Server (Streamable HTTP) mit OAuth 2.1. Die App ist selbst Authorization Server
+# (app/oauth.py); ohne gültiges Token antwortet /mcp mit 401 + WWW-Authenticate. Jeder
+# Aufruf läuft im Haushalt des Tokens (app/mcp_auth.py), es gibt keinen kontextlosen Modus.
 mcp_app = None
+oauth_provider = None
 if config.MCP_ENABLED:
+    from . import oauth
     from .mcp_server import mcp
-    mcp_app = mcp.http_app(path="/")
-    # F10: MCP läuft ohne Auth-Kontext und ist bewusst single-tenant (LAN). Nur hier darf
-    # der kontextlose Default auf Konto 1 zeigen; im Cloud-Build (MCP aus) bleibt er -1.
-    db.set_no_context_account(1)
+    oauth_provider = oauth.TopfplanOAuth()
+    mcp.auth = oauth_provider
+    mcp_app = mcp.http_app(path="/mcp", stateless_http=True)
+    if not config.PUBLIC_URL.startswith("https://"):
+        log.warning("PUBLIC_URL ist nicht https (%s) – Claude-Connectoren brauchen HTTPS.", config.PUBLIC_URL)
 
 
 async def _angebote_cleanup_loop():
@@ -49,6 +51,12 @@ async def _angebote_cleanup_loop():
                 log.info("Angebote-Cleanup: %s abgelaufene entfernt", res["geloescht"])
         except Exception as e:  # Job darf den Server nie stoeren
             log.warning("Angebote-Cleanup fehlgeschlagen: %s", e)
+        if oauth_provider is not None:
+            try:
+                from . import oauth
+                await oauth.aufraeumen()
+            except Exception as e:
+                log.warning("OAuth-Aufräumen fehlgeschlagen: %s", e)
         await asyncio.sleep(24 * 3600)
 
 
@@ -57,6 +65,7 @@ async def lifespan(app: FastAPI):
     await db.connect()
     await db.ensure_mail_schema()   # additive Mail-Tokens-Migration (idempotent)
     await db.ensure_index_schema()  # Betriebs-Indexe/-Spalten (idempotent)
+    await db.ensure_mcp_schema()    # OAuth-/MCP-Tabellen (idempotent, s. migration_mcp_oauth.sql)
     cleanup_task = asyncio.create_task(_angebote_cleanup_loop())
     # Lifespan des MCP-Servers mitlaufen lassen (Session-Manager etc.) – nur wenn aktiv.
     if mcp_app is not None:
@@ -95,11 +104,6 @@ async def _ki_nicht_konfiguriert_handler(request: Request, exc: ki.KiNichtKonfig
 
 
 app.include_router(router)
-if mcp_app is not None:
-    app.mount("/mcp", mcp_app)
-    log.info("MCP-Endpunkt /mcp aktiviert (MCP_ENABLED=1).")
-else:
-    log.info("MCP-Endpunkt deaktiviert (MCP_ENABLED nicht gesetzt) – /mcp nicht gemountet.")
 
 
 @app.get("/health")
@@ -114,3 +118,15 @@ async def health():
         log.warning("Health-Check: DB nicht erreichbar: %s", e)
         return JSONResponse(status_code=503, content={"status": "db_down"})
     return {"status": "ok"}
+
+
+# Zuletzt: MCP-App an der Wurzel einhängen. Sie bringt /mcp, /.well-known/oauth-*,
+# /authorize, /token, /register und /revoke mit; alle FastAPI-Routen oben haben Vorrang.
+if mcp_app is not None:
+    from .oauth_routen import register_bremsen, revoke_reparieren
+    register_bremsen(mcp_app)
+    revoke_reparieren(mcp_app)
+    app.mount("/", mcp_app)
+    log.info("MCP-Endpunkt %s/mcp mit OAuth aktiviert.", config.PUBLIC_URL)
+else:
+    log.info("MCP-Endpunkt deaktiviert (MCP_ENABLED=0).")

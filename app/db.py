@@ -7,16 +7,10 @@ from . import config
 
 _pool: "asyncpg.Pool | None" = None
 
-# F10: Konto, das ohne Auth-Kontext (und ohne bypass) verwendet wird. Default -1 = ein
-# unmögliches Konto → RLS liefert nichts (fail-closed). Früher war das 1 (Eigentümer),
-# wodurch jeder kontextlose Pfad still die Owner-Daten sah. Nur die LAN-MCP-Anbindung
-# (single-tenant, MCP_ENABLED) darf das bewusst auf 1 stellen (siehe main.py).
-_no_context_account = -1
-
-
-def set_no_context_account(account_id: int) -> None:
-    global _no_context_account
-    _no_context_account = int(account_id)
+# F10: Konto, das ohne Auth-Kontext (und ohne bypass) verwendet wird: -1 = ein unmögliches
+# Konto → RLS liefert nichts (fail-closed). Es gibt keinen Weg mehr, das umzustellen: auch der
+# MCP-Endpunkt setzt den Haushalt pro Aufruf aus dem geprüften Token (app/mcp_auth.py).
+_NO_CONTEXT_ACCOUNT = -1
 
 
 async def _init_conn(conn) -> None:
@@ -106,6 +100,13 @@ async def ensure_index_schema() -> None:
     await _ensure("ensure_index_schema", _INDEX_SCHEMA_STMTS)
 
 
+async def ensure_mcp_schema() -> None:
+    """OAuth-/MCP-Tabellen (s. migration_mcp_oauth.sql). Ohne CREATE-Recht des App-Users
+    bleibt es bei einer Warnung – dann die Migration einmal als Eigentümer einspielen."""
+    from .oauth import KONTO_SCHEMA_STMTS, OAUTH_SCHEMA_STMTS
+    await _ensure("ensure_mcp_schema", OAUTH_SCHEMA_STMTS + KONTO_SCHEMA_STMTS)
+
+
 def pool() -> "asyncpg.Pool":
     if _pool is None:
         raise RuntimeError("DB-Pool nicht initialisiert")
@@ -117,12 +118,11 @@ async def acquire(bypass: bool = False):
     """Verbindung mit gesetztem Mandanten-Kontext (Postgres-RLS).
 
     Setzt `app.account_id` aus dem aktuellen Auth-Kontext (ContextVar). Ohne Kontext
-    wird `_no_context_account` genutzt – standardmäßig -1 (unmögliches Konto → RLS liefert
-    nichts, fail-closed). Nur die LAN-MCP-Anbindung setzt das bewusst auf 1 (F10).
+    wird -1 genutzt (unmögliches Konto → RLS liefert nichts, fail-closed, F10).
     bypass=True -> volle Sicht (nur fuer vertrauenswuerdige Wartungsjobs)."""
     from .userauth import current_account
     acc = current_account.get()
-    acc_eff = acc if acc is not None else _no_context_account
+    acc_eff = acc if acc is not None else _NO_CONTEXT_ACCOUNT
     async with pool().acquire() as con:
         if bypass:
             await con.execute("SELECT set_config('app.bypass','on',false)")

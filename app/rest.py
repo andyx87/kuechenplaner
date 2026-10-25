@@ -6,6 +6,8 @@ import base64
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 
+from .schemas import OAuthEntscheidung, PatErstellen
+
 from . import adminstats, angebote_import, audit, bilder, chat, config, guided, ki, kontoloeschung, pdf, ratelimit, rezept_adapt, rezept_link, rezept_suche, services, userauth, vision
 
 router = APIRouter(prefix="/api")
@@ -155,6 +157,77 @@ async def auth_me(authorization: str | None = Header(default=None)):
     if not me:
         raise HTTPException(401, "nicht angemeldet")
     return me
+
+
+# ---------- Claude & MCP: OAuth-Zustimmung, verbundene Apps, persönliche Tokens ----------
+
+def _mcp_aktiv() -> None:
+    if not config.MCP_ENABLED:
+        raise HTTPException(404, "MCP ist auf diesem Server deaktiviert.")
+
+
+@router.get("/mcp/info")
+async def mcp_info(ctx=Depends(auth)):
+    """Daten für die Einstellungsseite: MCP-URL und ob der Endpunkt aktiv ist."""
+    return {"aktiv": config.MCP_ENABLED, "mcp_url": f"{config.PUBLIC_URL}/mcp",
+            "https": config.PUBLIC_URL.startswith("https://")}
+
+
+@router.get("/oauth/anfrage/{anfrage}")
+async def oauth_anfrage_info(anfrage: str, ctx=Depends(auth)):
+    _mcp_aktiv()
+    from . import oauth
+    info = await oauth.anfrage_info(anfrage, ctx["account_id"])
+    if not info:
+        raise HTTPException(404, "Diese Verbindungsanfrage ist abgelaufen oder ungültig. Bitte in der App neu verbinden.")
+    return info
+
+
+@router.post("/oauth/anfrage/{anfrage}")
+async def oauth_anfrage_entscheiden(anfrage: str, body: OAuthEntscheidung, ctx=Depends(auth)):
+    _mcp_aktiv()
+    from . import oauth
+    res = await oauth.anfrage_entscheiden(anfrage, ctx["user_id"], ctx["account_id"], body.zustimmen, body.scopes)
+    if not res:
+        raise HTTPException(404, "Diese Verbindungsanfrage ist abgelaufen oder ungültig.")
+    return res
+
+
+@router.get("/verbindungen")
+async def verbindungen(ctx=Depends(auth)):
+    _mcp_aktiv()
+    from . import oauth
+    return {"apps": await oauth.verbindungen_liste(ctx["user_id"], ctx["account_id"]),
+            "tokens": await oauth.pat_liste(ctx["user_id"], ctx["account_id"]),
+            "mcp_url": f"{config.PUBLIC_URL}/mcp"}
+
+
+@router.delete("/verbindungen/apps/{grant_id}")
+async def verbindung_widerrufen(grant_id: int, ctx=Depends(auth)):
+    _mcp_aktiv()
+    from . import oauth
+    if not await oauth.verbindung_widerrufen(grant_id, ctx["user_id"], ctx["account_id"]):
+        raise HTTPException(404, "Verbindung nicht gefunden.")
+    return {"ok": True}
+
+
+@router.post("/verbindungen/tokens")
+async def token_erstellen(body: PatErstellen, ctx=Depends(auth)):
+    _mcp_aktiv()
+    from . import oauth
+    res = await oauth.pat_erstellen(ctx["user_id"], ctx["account_id"], body.name, list(body.scopes), body.gueltig_tage)
+    if res.get("error"):
+        raise HTTPException(400, res["error"])
+    return res
+
+
+@router.delete("/verbindungen/tokens/{token_id}")
+async def token_widerrufen(token_id: int, ctx=Depends(auth)):
+    _mcp_aktiv()
+    from . import oauth
+    if not await oauth.pat_widerrufen(token_id, ctx["user_id"]):
+        raise HTTPException(404, "Token nicht gefunden.")
+    return {"ok": True}
 
 
 async def admin_auth(ctx=Depends(auth)):
