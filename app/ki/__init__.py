@@ -1,44 +1,47 @@
-"""Zentrale Stelle für alle Text-KI-Aufrufe (ohne Abrechnung/Kontingente).
+"""KI-Anbieter-Abstraktion ("bring your own key").
 
-`complete(zweck, **kwargs)` prüft die KI-Freigabe des Nutzers, wählt das Modell je
-Zweck und führt die Chat-Completion aus.
+Alle KI-Aufrufe der App laufen über dieses Paket. Konfiguriert wird ausschließlich per
+Umgebungsvariablen (s. app/config.py, Abschnitt "KI"). Ohne Konfiguration ist die KI aus:
+`verfuegbar()` liefert False, die Web-App blendet die KI-Knöpfe aus und Aufrufe enden mit
+`KiNichtKonfiguriert` (HTTP 503) statt mit einem Fehler beim Anbieter.
+
+Öffentliche Schnittstelle:
+  status()                       -> {"text", "vision", "bild", "spracheingabe", "websuche"}
+  verfuegbar(faehigkeit)         -> bool
+  complete(zweck, **kwargs)      -> Chat-Completion (OpenAI-kompatibel)
+  bild_erzeugen(prompt)          -> Bildbytes | None
+  transkribiere(audio, mime)     -> Text
 """
 from __future__ import annotations
 
-from openai import AsyncOpenAI
-
-from .. import config, gauth
 from ..userauth import current_account, current_user, darf_ki
+from .bild_openai import bild_erzeugen as _bild_erzeugen
+from .einstellungen import (FAEHIGKEITEN, KiNichtKonfiguriert, modell_fuer_zweck, status,
+                            verfuegbar)
+from .text_openai import complete as _complete
+from .transkription_openai import transkribiere as _transkribiere
 
-_MODELL = {
-    "schnell": "google/gemini-2.5-flash-lite",
-    "standard": "google/gemini-2.5-flash",
-}
-_ZWECK_STUFE = {
-    "angebote-import": config.ANGEBOTE_STUFE if config.ANGEBOTE_STUFE in _MODELL else "schnell",
-    "spracheingabe": "schnell",
-    "kategorisierung": "schnell",
-}
-
-_client: AsyncOpenAI | None = None
+__all__ = ["FAEHIGKEITEN", "KiNichtKonfiguriert", "bild_erzeugen", "complete",
+           "modell_fuer_zweck", "status", "transkribiere", "verfuegbar"]
 
 
-def _c() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(base_url=config.VERTEX_BASE_URL, api_key=gauth.get_token())
-    else:
-        _client.api_key = gauth.get_token()
-    return _client
-
-
-def modell_fuer_zweck(zweck: str | None) -> str:
-    return _MODELL[_ZWECK_STUFE.get(zweck or "", "standard")]
+async def _pruefe_freigabe() -> None:
+    if not await darf_ki(current_user.get(), current_account.get()):
+        raise PermissionError("KI-Funktionen sind für diesen Nutzer deaktiviert.")
 
 
 async def complete(zweck: str, **kwargs):
-    """Führt eine Chat-Completion für `zweck` aus und gibt das Completion-Objekt zurück."""
-    if not await darf_ki(current_user.get(), current_account.get()):
-        raise PermissionError("KI-Funktionen sind für diesen Nutzer deaktiviert.")
-    kwargs["model"] = modell_fuer_zweck(zweck)
-    return await _c().chat.completions.create(**kwargs)
+    """Chat-Completion für `zweck`. Das Modell wählt die Konfiguration (ein evtl.
+    übergebenes `model` wird überschrieben)."""
+    await _pruefe_freigabe()
+    return await _complete(zweck, **kwargs)
+
+
+async def bild_erzeugen(prompt: str) -> bytes | None:
+    await _pruefe_freigabe()
+    return await _bild_erzeugen(prompt)
+
+
+async def transkribiere(audio: bytes, mime: str | None = None) -> str:
+    await _pruefe_freigabe()
+    return await _transkribiere(audio, mime)

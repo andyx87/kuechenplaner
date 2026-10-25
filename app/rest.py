@@ -6,7 +6,7 @@ import base64
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 
-from . import adminstats, angebote_import, audit, bilder, chat, config, guided, kontoloeschung, ratelimit, rezept_adapt, rezept_link, rezept_suche, services, transkription, userauth, vision
+from . import adminstats, angebote_import, audit, bilder, chat, config, guided, ki, kontoloeschung, ratelimit, rezept_adapt, rezept_link, rezept_suche, services, userauth, vision
 
 router = APIRouter(prefix="/api")
 
@@ -171,12 +171,35 @@ async def support_auth(ctx=Depends(auth)):
     return ctx
 
 
+def _ki_noetig(faehigkeit: str = "text") -> None:
+    """503, wenn die KI-Fähigkeit auf dieser Instanz nicht eingerichtet ist."""
+    if not ki.verfuegbar(faehigkeit):
+        raise ki.KiNichtKonfiguriert(faehigkeit)
+
+
 async def ki_auth(ctx=Depends(auth)):
-    """Wie auth, blockiert aber Nutzer ohne KI-Freigabe (harte Server-Barriere).
+    """Wie auth, blockiert aber Nutzer ohne KI-Freigabe (harte Server-Barriere) und
+    Instanzen ohne konfigurierten KI-Anbieter (503).
     Owner/Super-Admin immer erlaubt; sonst account_mitglied.ki_erlaubt."""
+    _ki_noetig("text")
     if not await userauth.darf_ki(ctx["user_id"], ctx["account_id"]):
         raise HTTPException(status_code=403, detail="KI-Funktionen sind für dich deaktiviert.")
     return ctx
+
+
+async def ki_vision_auth(ctx=Depends(ki_auth)):
+    """Wie ki_auth, zusätzlich muss ein bildfähiges Modell konfiguriert sein."""
+    _ki_noetig("vision")
+    return ctx
+
+
+@router.get("/ki/status")
+async def ki_status(ctx=Depends(auth)):
+    """Welche KI-Funktionen diese Instanz anbietet und ob der Nutzer sie nutzen darf.
+    Die Web-App blendet danach die KI-Knöpfe ein oder aus. Enthält keine URLs/Schlüssel."""
+    st = ki.status()
+    st["darf_ki"] = bool(await userauth.darf_ki(ctx["user_id"], ctx["account_id"]))
+    return st
 
 
 @router.get("/einladungen", dependencies=[Depends(auth)])
@@ -720,9 +743,9 @@ async def vorrat_loeschen(vid: int):
     return await services.delete_vorrat(vid)
 
 
-@router.post("/vorrat/foto", dependencies=[Depends(ki_auth)])
+@router.post("/vorrat/foto", dependencies=[Depends(ki_vision_auth)])
 async def vorrat_foto(datei: UploadFile = File(...)):
-    """Foto -> Claude Vision -> Vorschlagsliste (KEIN automatischer Eintrag).
+    """Foto -> KI (Vision) -> Vorschlagsliste (KEIN automatischer Eintrag).
     Die Web-App zeigt die Liste zum Bearbeiten und postet sie dann an /vorrat."""
     raw = await datei.read()
     _pruefe_upload_groesse(len(raw))
@@ -732,7 +755,7 @@ async def vorrat_foto(datei: UploadFile = File(...)):
     return {"vorschlag": vorschlag}
 
 
-@router.post("/geraete/foto", dependencies=[Depends(ki_auth)])
+@router.post("/geraete/foto", dependencies=[Depends(ki_vision_auth)])
 async def geraete_foto(datei: UploadFile = File(...)):
     """Foto -> KI erkennt Kuechengeraete -> Vorschlagsliste (kein automatischer Eintrag)."""
     raw = await datei.read()
@@ -780,7 +803,7 @@ async def rezept_angebote(rezept_id: int, markt: str | None = None, datum: str |
     return await services.rezept_angebote(rezept_id, markt, d)
 
 
-@router.post("/rezepte/geraete-anpassen", dependencies=[Depends(auth)])
+@router.post("/rezepte/geraete-anpassen", dependencies=[Depends(ki_auth)])
 async def rezepte_geraete_anpassen():
     """Passt die Zubereitung aller Rezepte per KI an die aktuellen Geraete an (Hintergrund)."""
     job_id = await rezept_adapt.starte()
@@ -891,6 +914,7 @@ async def rezept_bild_upload(rid: int, datei: UploadFile = File(...)):
 @router.post("/rezepte/{rid}/bild/generieren", dependencies=[Depends(ki_auth)])
 async def rezept_bild_generieren(rid: int):
     """Bild per KI erzeugen und beim Rezept speichern."""
+    _ki_noetig("bild")
     r = await services.get_rezept(rid)
     if r is None:
         raise HTTPException(404, "Rezept nicht gefunden")
@@ -955,7 +979,7 @@ class DateiImportBody(BaseModel):
     dateien: list[dict]  # [{data: base64, media_type, filename}]
 
 
-@router.post("/rezepte/aus-dateien", dependencies=[Depends(ki_auth)])
+@router.post("/rezepte/aus-dateien", dependencies=[Depends(ki_vision_auth)])
 async def rezept_aus_dateien(body: DateiImportBody):
     """Rezept aus hochgeladenen Screenshots/Fotos und/oder PDFs importieren (KI-Vision)."""
     dateien = body.dateien or []
@@ -1192,6 +1216,7 @@ async def angebote_import_datei(
     Prospekt mit speichern (etwas teurer, da Vision pro Seite). Gibt job_id zurueck."""
     if not await userauth.darf_angebote_upload(ctx["user_id"]):
         raise HTTPException(403, "Angebots-Upload für dieses Konto nicht freigeschaltet")
+    ki.modell_fuer_zweck("angebote-import")  # 503, wenn kein (Prospekt-/Vision-)Modell eingerichtet ist
     # Der aufwendigste KI-Zweck (1 Modellaufruf je Seite, bis 24 Seiten) bekommt eine
     # Obergrenze je Nutzer: 10 Prospekte/Tag decken jeden realen Haushalt.
     ratelimit.pruefe(f"angebote-import:user:{ctx['user_id']}", limit=10, fenster_s=86400)
@@ -1317,14 +1342,13 @@ async def chat_endpoint(body: ChatBody):
 @router.post("/chat/transkribieren", dependencies=[Depends(ki_auth)])
 async def chat_transkribieren(datei: UploadFile = File(...)):
     """Sprachaufnahme -> Text. Nur aktiv, wenn eine Transkription konfiguriert ist."""
-    if not config.SPRACHEINGABE_AKTIV:
-        raise HTTPException(503, "Spracheingabe ist derzeit deaktiviert.")
+    _ki_noetig("spracheingabe")
     raw = await datei.read()
     _pruefe_upload_groesse(len(raw))
     if not raw:
         raise HTTPException(400, "leere Audiodatei")
     try:
-        return await transkription.transkribiere(raw, datei.content_type or "audio/webm")
+        return {"text": await ki.transkribiere(raw, datei.content_type or "audio/webm")}
     except PermissionError as e:
         raise HTTPException(403, str(e))
 

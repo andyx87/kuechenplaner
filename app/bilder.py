@@ -9,44 +9,17 @@ import base64
 import io
 import logging
 
-from . import config, gauth
+from . import config, ki
 from .userauth import current_account, current_user, darf_ki
 
 log = logging.getLogger("koch")
 MAX_PX = 1024
 
 
-async def _gemini_bild_generate(prompt: str, image_size: str) -> "tuple[bytes | None, dict]":
-    """Erzeugt EIN quadratisches Bild über Vertex gemini-3.1-flash-image (generateContent).
-    image_size: '512' oder '1K'. Gibt (Bildbytes|None, usage) zurück; usage = Tokenzahlen
-    {prompt, image, thought} aus usageMetadata (für die tokenbasierte Abrechnung)."""
-    import httpx
-    url = f"{config.VERTEX_PREDICT_BASE}/publishers/google/models/{config.IMAGE_MODEL}:generateContent"
-    body = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "responseModalities": ["IMAGE"],
-            "imageConfig": {"imageSize": image_size, "aspectRatio": "1:1"},
-        },
-    }
-    headers = {"Authorization": "Bearer " + gauth.get_token(),
-               "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=120) as cx:
-        r = await cx.post(url, json=body, headers=headers)
-    r.raise_for_status()
-    d = r.json() or {}
-    um = d.get("usageMetadata") or {}
-    img_tok = next((x.get("tokenCount", 0) for x in (um.get("candidatesTokensDetails") or [])
-                    if x.get("modality") == "IMAGE"), 0)
-    usage = {"prompt": int(um.get("promptTokenCount") or 0),
-             "image": int(img_tok or 0),
-             "thought": int(um.get("thoughtsTokenCount") or 0)}
-    for cand in (d.get("candidates") or []):
-        for p in (cand.get("content") or {}).get("parts") or []:
-            inline = p.get("inlineData") or p.get("inline_data")
-            if inline and inline.get("data"):
-                return base64.b64decode(inline["data"]), usage
-    return None, usage
+def bild_prompt(name: str, zutaten_namen: str | None = None) -> str:
+    """EIN beschreibender Satz (kein \n, keine Anweisungen) -> verhindert gerenderten Text."""
+    gericht = (name or "Gericht") + (f", with {zutaten_namen}" if zutaten_namen else "")
+    return f"{gericht}. {config.KI_IMAGE_STYLE}."
 
 
 def quadrat_resize(raw: bytes, max_px: int = 768) -> str:
@@ -70,7 +43,7 @@ def quadrat_resize(raw: bytes, max_px: int = 768) -> str:
 
 async def generiere_rezeptbild(name: str, beschreibung: str | None = None,
                                zutaten: list[dict] | None = None) -> str | None:
-    """Erzeugt ein quadratisches Food-Foto via Imagen. Ambiente richtet sich nach der
+    """Erzeugt ein quadratisches Food-Foto über den Bild-Anbieter. Ambiente richtet sich nach der
     Küche (Stil-Prompt); Gericht + Zutaten gehen für ein korrektes Ergebnis mit in den
     Prompt. Gibt eine Data-URL zurück (oder None)."""
     # Harte Barriere: ohne KI-Freigabe kein Bild generieren.
@@ -80,11 +53,11 @@ async def generiere_rezeptbild(name: str, beschreibung: str | None = None,
         (z.get("zutat") or z.get("name") or "").strip()
         for z in (zutaten or []) if (z.get("zutat") or z.get("name"))
     )[:400]
-    # EIN beschreibender Satz (kein \n, keine Anweisungen) -> verhindert gerenderten Text.
-    gericht = name + (f", with {zlist}" if zlist else "")
-    prompt = f"{gericht}. {config.IMAGE_STYLE}."
+    prompt = bild_prompt(name, zlist)
     try:
-        raw, _usage = await _gemini_bild_generate(prompt, "1K")
+        raw = await ki.bild_erzeugen(prompt)
+    except ki.KiNichtKonfiguriert:
+        raise
     except Exception as e:
         log.warning("Bildgenerierung fehlgeschlagen: %s", e)
         return None

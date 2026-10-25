@@ -1,16 +1,17 @@
 """Einmal-/Wartungs-Job: Bilder für öffentliche Rezepte (Pool) erzeugen.
 
 Läuft kontoübergreifend (bypass), erzeugt für veröffentlichte Rezepte OHNE Bild ein
-1024px-Bild (Showcase-Qualität) und speichert es. Kosten trägt die Plattform (kein
-Nutzer-Billing). In Chunks aufrufbar, damit es unter dem Request-Timeout bleibt.
+1024px-Bild über den konfigurierten Bild-Anbieter und speichert es. In Chunks
+aufrufbar, damit es unter dem Request-Timeout bleibt.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 
-from . import bilder, config
+from . import bilder
 from .db import acquire
+from .ki import bild_openai
 
 log = logging.getLogger("koch")
 
@@ -19,8 +20,8 @@ async def _generiere_mit_retry(prompt: str, versuche: int = 4):
     """Erzeugt EIN 1024px-Bild; bei 429 (Rate-Limit) mit Backoff erneut versuchen."""
     for i in range(versuche):
         try:
-            raw, _usage = await bilder._gemini_bild_generate(prompt, "1K")
-            return raw
+            # Admin-Wartungsjob ohne Nutzerkontext -> direkt der Anbieter (ohne darf_ki).
+            return await bild_openai.bild_erzeugen(prompt)
         except Exception as e:
             is429 = "429" in str(e) or "Too Many Requests" in str(e)
             if is429 and i < versuche - 1:
@@ -56,8 +57,7 @@ async def batch(limit: int = 8) -> dict:
         for idx, r in enumerate(rezepte):
             try:
                 zlist = await _zutaten_namen(con, r["id"])
-                gericht = (r["name"] or "Gericht") + (f", with {zlist}" if zlist else "")
-                prompt = f"{gericht}. {config.IMAGE_STYLE}."
+                prompt = bilder.bild_prompt(r["name"], zlist)
                 raw = await _generiere_mit_retry(prompt)
                 if not raw:
                     fehler += 1

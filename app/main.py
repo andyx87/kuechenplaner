@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import config, db, services
+from . import config, db, ki, services
 from .rest import router
 
 logging.basicConfig(
@@ -84,6 +84,14 @@ async def _nichtgefunden_handler(request: Request, exc: services.NichtGefunden):
     return JSONResponse(status_code=404, content={
         "fehler": "nicht_gefunden",
         "meldung": str(exc) or "Nicht gefunden oder kein Zugriff."})
+
+
+@app.exception_handler(ki.KiNichtKonfiguriert)
+async def _ki_nicht_konfiguriert_handler(request: Request, exc: ki.KiNichtKonfiguriert):
+    """KI-Funktion auf dieser Instanz nicht eingerichtet → HTTP 503 (kein Anbieter-Aufruf)."""
+    return JSONResponse(status_code=503, content={
+        "fehler": "ki_nicht_konfiguriert", "faehigkeit": exc.faehigkeit,
+        "meldung": "Diese KI-Funktion ist auf diesem Server nicht eingerichtet."})
 
 
 app.include_router(router)

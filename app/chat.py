@@ -479,7 +479,7 @@ async def _haushalt_block() -> str:
     return block
 
 
-# Großer STATISCHER Block – identisch bei jedem Aufruf → stabiler Prefix für Geminis
+# Großer STATISCHER Block – identisch bei jedem Aufruf → stabiler Prefix für den
 # (implizites) Prompt-Caching. Dynamischer Kontext (Datum/Haushalt/Nutzer) kommt ans ENDE.
 _SYSTEM_STATIC = """Du bist der Kuechenassistent fuer den Haushalt des Nutzers. Du hilfst bei Wochenplanung, Vorrat, Rezepten und Einkaufsliste – praktisch und proaktiv.
 
@@ -520,7 +520,7 @@ TON: freundlich, direkt, kein Blabla. Mengen konkret ("400 g Haehnchenbrust", ni
 
 async def _system_prompt() -> str:
     """Statischer Regelblock (cachebarer Prefix) + dynamischer Kontext (Datum, Haushalt)
-    am Ende, damit Geminis impliziter Prompt-Cache den großen Teil wiederverwenden kann."""
+    am Ende, damit ein impliziter Prompt-Cache des Anbieters den großen Teil wiederverwenden kann."""
     heute = services._today()
     wt = _WOCHENTAGE[heute.weekday()]
     kw = heute.isocalendar().week
@@ -553,8 +553,8 @@ def _memory_hinweis(auto: bool) -> str:
 async def run(history: list[dict], max_steps: int = 6) -> dict:
     """history: Liste von {role, content} (user/assistant) in chronologischer Reihenfolge.
     Fuehrt den Tool-Loop aus. Gibt {antwort, tools_genutzt:[...]} zurueck."""
-    if not config.CHAT_MODEL:
-        return {"antwort": "Chat ist nicht konfiguriert (CHAT_MODEL fehlt).", "tools_genutzt": []}
+    if not ki.verfuegbar("text"):
+        raise ki.KiNichtKonfiguriert("text")
 
     # Ohne Klarnamen-Freigabe: kein Nutzername im Prompt und KEIN proaktives Speichern
     # personenbezogener Infos – die App soll von sich aus keine Personendaten verarbeiten.
@@ -643,8 +643,8 @@ async def run(history: list[dict], max_steps: int = 6) -> dict:
                     "tool_call_id": tc.id,
                     "content": json.dumps(result, ensure_ascii=False, default=str)[:8000],
                 })
-    except PermissionError:
-        # Sperre muss als strukturierter Fehler (HTTP 403) durchgereicht werden,
+    except (PermissionError, ki.KiNichtKonfiguriert):
+        # Sperre/fehlende Konfiguration als strukturierter Fehler (HTTP 403/503) durchreichen,
         # NICHT als normale Chat-Antwort verpackt.
         raise
     except Exception as e:  # LLM-/Verbindungsfehler lesbar zurueckgeben statt 500
@@ -704,8 +704,8 @@ async def generiere_rezept(wunsch: str | None = None, haendler: list[str] | None
     freitext_vorrat: 'Vorrat light' – der Nutzer gibt seine vorhandenen Zutaten frei als
     Text ein (z. B. 'noch viele Kartoffeln, Zwiebeln, etwas Kaese'); dann wird DIESER Text
     als Vorrat verwendet statt des gespeicherten Vorrats."""
-    if not config.CHAT_MODEL:
-        return {"error": "Rezept-Generator ist nicht konfiguriert (CHAT_MODEL fehlt)."}
+    if not ki.verfuegbar("text"):
+        raise ki.KiNichtKonfiguriert("text")
 
     freitext = (freitext_vorrat or "").strip()
     # Vorrat-Light: Freitext hat Vorrang; sonst gespeicherter Vorrat (nur wenn vorrat=True).
@@ -816,8 +816,8 @@ async def generiere_rezept(wunsch: str | None = None, haendler: list[str] | None
             rez = json.loads(text[i:j + 1])
     except json.JSONDecodeError:
         return {"error": "Die KI-Antwort war unvollstaendig (zu lang). Bitte erneut versuchen."}
-    except PermissionError:
-        raise  # Sperre als HTTP 403 durchreichen, nicht als {"error": ...}
+    except (PermissionError, ki.KiNichtKonfiguriert):
+        raise  # Sperre/fehlende Konfiguration als HTTP 403/503 durchreichen, nicht als {"error": ...}
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}"}
     if not isinstance(rez, dict) or not (rez.get("name") or "").strip():

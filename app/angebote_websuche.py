@@ -1,9 +1,10 @@
-"""Angebote im Internet suchen (Voll-Automatik) via Gemini + Google-Search-Grounding.
+"""Angebote im Internet suchen (optional, experimentell) via Gemini + Google-Search-Grounding.
 
-Der Chatbot kann auf Wunsch ("such die aktuellen Angebote von Supermarkt Beispiel") online nach den
-aktuellen Prospekt-/Wochenangeboten eines Marktes suchen. Dafuer rufen wir den nativen
-Vertex generateContent-Endpunkt mit dem `google_search`-Tool auf (das OpenAI-kompatible
+Online nach den aktuellen Prospekt-/Wochenangeboten eines Marktes suchen. Dafuer rufen wir
+die Gemini-API (generateContent) mit dem `google_search`-Tool auf (das OpenAI-kompatible
 Layer kann kein Grounding) und lassen das Modell die gefundenen Angebote als JSON liefern.
+Nur aktiv mit eigenem Schluessel (KI_WEBSUCHE_GEMINI_API_KEY); sonst KiNichtKonfiguriert.
+Derzeit nicht an eine Route angebunden.
 
 WICHTIG: Online gefundene Preise koennen veraltet/ungenau sein. Das Ergebnis enthaelt
 daher immer die Quelle; der Chat zeigt es dem Nutzer und erfasst erst nach Bestaetigung
@@ -15,14 +16,13 @@ import json
 import logging
 import re
 
-from . import config, gauth, services
+from . import config, services
+from .ki import KiNichtKonfiguriert, verfuegbar
 from .userauth import current_account, current_user, darf_ki
 
 log = logging.getLogger("koch")
 
-# Grounding laeuft ueber ein normales Text-Gemini (kein -lite, damit die Suche/Extraktion
-# zuverlaessig ist). Bewusst fix, unabhaengig von der Modellstufe des Kontos.
-_SUCH_MODELL = "gemini-2.5-flash"
+_GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models"
 _MAX_ANGEBOTE = 60
 
 
@@ -96,16 +96,18 @@ async def suche_angebote(markt: str, ort: str | None = None) -> dict:
 
     if not await darf_ki(current_user.get(), current_account.get()):
         raise PermissionError("KI-Funktionen sind für diesen Nutzer deaktiviert.")
+    if not verfuegbar("websuche"):
+        raise KiNichtKonfiguriert("websuche")
 
     import httpx
     heute = services._today().isoformat()
-    url = f"{config.VERTEX_PREDICT_BASE}/publishers/google/models/{_SUCH_MODELL}:generateContent"
+    url = f"{_GEMINI_API}/{config.KI_WEBSUCHE_MODEL}:generateContent"
     body = {
         "contents": [{"role": "user", "parts": [{"text": _prompt(markt, ort, heute)}]}],
         "tools": [{"google_search": {}}],
         "generationConfig": {"temperature": 0.1},
     }
-    headers = {"Authorization": "Bearer " + gauth.get_token(), "Content-Type": "application/json"}
+    headers = {"x-goog-api-key": config.KI_WEBSUCHE_GEMINI_API_KEY, "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=120) as cx:
         r = await cx.post(url, json=body, headers=headers)
     r.raise_for_status()

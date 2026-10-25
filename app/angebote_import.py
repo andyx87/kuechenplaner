@@ -361,8 +361,8 @@ async def _run(job_id: str, path: str, haendler: str | None, gv: str | None, gb:
                             url = "data:image/png;base64," + base64.b64encode(png).decode()
                             meta = await _seite_extrakt(url, heute)
                             modi.add("vision")
-                    except PermissionError:
-                        raise  # Limit/Sperre klar melden, nicht als "0 Angebote" verschlucken
+                    except (PermissionError, ki.KiNichtKonfiguriert):
+                        raise  # Sperre/fehlende Konfiguration klar melden, nicht als "0 Angebote" verschlucken
                     except Exception:
                         meta = {}
                     _bilder_zuordnen(meta, page, mit_bildern)
@@ -398,10 +398,10 @@ async def _run(job_id: str, path: str, haendler: str | None, gv: str | None, gb:
             try:
                 meta = await _seite_extrakt(url, heute)
                 modi.add("vision")
-            except PermissionError:
+            except (PermissionError, ki.KiNichtKonfiguriert):
                 if idoc is not None:
                     idoc.close()
-                raise  # Limit/Sperre klar melden, nicht als "0 Angebote" verschlucken
+                raise  # Sperre/fehlende Konfiguration klar melden, nicht als "0 Angebote" verschlucken
             except Exception:
                 meta = {}
             _bilder_zuordnen(meta, page, mit_bildern)

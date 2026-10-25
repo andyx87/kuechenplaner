@@ -18,42 +18,51 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8096").rstrip("/
 OPERATOR_NAME = os.environ.get("OPERATOR_NAME", "")
 SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "")
 
-# --- KI: Google Vertex AI (OpenAI-kompatibler Endpoint) ---
-# Authentifizierung ueber Service-Account/ADC (kein API-Key): in der Cloud
-# automatisch ueber den Cloud-Run-Service-Account, lokal ueber
-# `gcloud auth application-default login`. Siehe app/gauth.py.
-# Pflicht fuer die KI-Funktionen (kein Default): eigene GCP-Projekt-ID.
-GCP_PROJECT = os.environ.get("GCP_PROJECT", "")
-# Gemini ist nur ueber den globalen Endpoint vollstaendig verfuegbar
-# (flash-lite/pro fehlen in europe-west3) -> Default "global".
-VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
-# Chat/Vision: OpenAI-kompatibler Vertex-Endpoint.
-VERTEX_BASE_URL = os.environ.get("VERTEX_BASE_URL", "") or (
-    f"https://aiplatform.googleapis.com/v1beta1/projects/{GCP_PROJECT}"
-    f"/locations/{VERTEX_LOCATION}/endpoints/openapi")
-# Bilder (Imagen): nativer predict-Endpoint (v1, kein OpenAI-Schema).
-VERTEX_PREDICT_BASE = os.environ.get("VERTEX_PREDICT_BASE", "") or (
-    f"https://aiplatform.googleapis.com/v1/projects/{GCP_PROJECT}"
-    f"/locations/{VERTEX_LOCATION}")
-# Gate "ist KI konfiguriert?" (frueher CHAT_MODEL). Default an, da Vertex
-# ueber den Service-Account immer erreichbar ist. Das konkrete Modell je
-# Anfrage liefert billing.modell_fuer_konto() (Stufe schnell/standard/pro).
-CHAT_MODEL = os.environ.get("CHAT_MODEL", "") or "vertex"
-# Bildgenerierung über Gemini (Imagen 4 wird am 17.08.2026 abgeschaltet). EIN Modell,
-# zwei Auflösungen via billing.BILD_SIZE (Stufe schnell=512, standard=1K), tokenbasiert
-# abgerechnet (usageMetadata; Bild-Output-Tokens). Über generateContent (kein predict).
-IMAGE_MODEL = os.environ.get("IMAGE_MODEL", "") or "gemini-3.1-flash-image"
-IMAGE_MODEL_STANDARD = os.environ.get("IMAGE_MODEL_STANDARD", "") or "gemini-3.1-flash-image"
-# Einheitlicher Stil-Prompt fuer ALLE Rezeptbilder (per .env IMAGE_STYLE anpassbar),
-# damit die Bibliothek einen konsistenten Look hat.
-# Kurzer, rein BESCHREIBENDER Bild-Stil (Englisch wirkt bei Imagen am besten und
-# verhindert, dass Prompt-Text als Schrift ins Bild gerendert wird). EINE Zeile,
-# keine Anweisungen, kein "kein Text"-Hinweis (der provoziert erst Text).
-IMAGE_STYLE = os.environ.get("IMAGE_STYLE", "") or (
+# --- KI: eigener Anbieter ("bring your own key") ---
+# Alle KI-Funktionen sind OPTIONAL. Ohne KI_BASE_URL + KI_MODEL_DEFAULT ist die KI aus:
+# die Web-App blendet die KI-Knöpfe aus (GET /api/ki/status), alles andere funktioniert.
+# Text/Vision laufen über eine OpenAI-kompatible Chat-Completions-API (OpenAI, OpenRouter,
+# LiteLLM, Ollama, vLLM, Gemini-OpenAI-Endpunkt, ...). Siehe app/ki/.
+def _env(name: str, default: str = "") -> str:
+    return (os.environ.get(name) or default).strip()
+
+
+KI_BASE_URL = _env("KI_BASE_URL").rstrip("/")
+KI_API_KEY = _env("KI_API_KEY")
+KI_MODEL_DEFAULT = _env("KI_MODEL_DEFAULT")
+# Modell für Bildeingaben (Foto-Erkennung, Rezept aus Screenshot/PDF, Chat mit Bild).
+# Leer = KI_MODEL_DEFAULT; "aus" = der Anbieter kann keine Bilder -> Foto-Funktionen aus.
+KI_MODEL_VISION = _env("KI_MODEL_VISION")
+# Modell für den Prospekt-Import (ein Aufruf je Seite, Bild oder Text). Leer = Vision-Modell.
+KI_MODEL_FLYER = _env("KI_MODEL_FLYER")
+try:
+    KI_TIMEOUT_S = float(_env("KI_TIMEOUT_S", "120"))
+except ValueError:
+    KI_TIMEOUT_S = 120.0
+
+# Bildgenerierung (optional): OpenAI-Images-kompatibel (POST /images/generations).
+# Aktiv nur mit KI_IMAGE_MODEL. URL/Schlüssel fallen auf die Text-Einstellungen zurück.
+KI_IMAGE_BASE_URL = _env("KI_IMAGE_BASE_URL", KI_BASE_URL).rstrip("/")
+KI_IMAGE_API_KEY = _env("KI_IMAGE_API_KEY", KI_API_KEY)
+KI_IMAGE_MODEL = _env("KI_IMAGE_MODEL")
+KI_IMAGE_SIZE = _env("KI_IMAGE_SIZE", "1024x1024")
+# Einheitlicher, rein beschreibender Stil-Prompt für alle Rezeptbilder.
+KI_IMAGE_STYLE = _env("KI_IMAGE_STYLE") or (
     "professional food photography, single plated dish, overhead 45 degree angle, "
     "soft natural daylight, shallow depth of field, photorealistic, high detail, "
     "appetizing, clean composition, tableware and background matching the cuisine of the dish"
 )
+
+# Spracheingabe (optional): OpenAI-kompatible Transkription (POST /audio/transcriptions,
+# z. B. whisper-1). Aktiv nur mit KI_TRANSCRIBE_MODEL.
+KI_TRANSCRIBE_BASE_URL = _env("KI_TRANSCRIBE_BASE_URL", KI_BASE_URL).rstrip("/")
+KI_TRANSCRIBE_API_KEY = _env("KI_TRANSCRIBE_API_KEY", KI_API_KEY)
+KI_TRANSCRIBE_MODEL = _env("KI_TRANSCRIBE_MODEL")
+
+# Online-Angebotssuche (optional, experimentell): Gemini-API mit Google-Suche
+# (Grounding). Aktiv nur mit eigenem Gemini-API-Schlüssel.
+KI_WEBSUCHE_GEMINI_API_KEY = _env("KI_WEBSUCHE_GEMINI_API_KEY")
+KI_WEBSUCHE_MODEL = _env("KI_WEBSUCHE_MODEL", "gemini-2.5-flash")
 
 # --- Erst-Setup: Plattform-Admin (F8) ---
 # Nur wer beim allerersten Signup dieses Token mitgibt, wird super_admin und übernimmt
@@ -81,10 +90,9 @@ except ValueError:
 # --- MCP-Endpunkt (/mcp, Streamable HTTP) ---
 # Secure-by-default AUS: Der MCP-Server exponiert vollständig mutierende Tools
 # (rezept_loeschen, vorrat_reduzieren, angebot_loeschen …) OHNE eigene Auth und
-# läuft ohne Auth-Kontext auf Konto 1 bzw. mit RLS-Bypass. In der Cloud (öffentliche
-# Cloud-Run-URL) wäre er damit anonym erreichbar → deshalb Default deaktiviert.
-# Nur für eine KI-Anbindung im lokalen Netz (z.B. Open WebUI/LiteLLM) per MCP_ENABLED=1
-# gezielt aktivieren – dort ist der Port nicht öffentlich erreichbar.
+# läuft ohne Auth-Kontext auf Konto 1 bzw. mit RLS-Bypass. Öffentlich erreichbar wäre
+# er damit anonym nutzbar → deshalb Default deaktiviert. Nur in einem vertrauenswürdigen
+# lokalen Netz per MCP_ENABLED=1 gezielt aktivieren. (Ein MCP-Connector mit OAuth ist geplant.)
 MCP_ENABLED = os.environ.get("MCP_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
 
 # Oeffentlicher ICS-Speiseplan-Feed: eigener Token (in der Abo-URL), damit Google
@@ -95,13 +103,6 @@ KALENDER_TOKEN = os.environ.get("KALENDER_TOKEN", "")
 # z.B. https://kochen.example.com (ohne abschliessenden Slash).
 WEB_BASE_URL = os.environ.get("WEB_BASE_URL", "").rstrip("/")
 
-# --- Prospekt-Import: Modellstufe ---
-# Der Import macht EINEN Modellaufruf pro Prospektseite (bis 24 Seiten). Angebote von einer
-# Seite abzulesen ist Extraktion, keine Denkaufgabe – daher "schnell" (Flash-Lite: 0,10/0,40 €
-# je 1 Mio. Token statt 0,30/2,50 €, also ca. ein Sechstel). Falls die Erkennungsqualitaet auf
-# dichten Prospektseiten leidet, hier ohne Code-Aenderung auf "standard" zurueckstellen.
-ANGEBOTE_STUFE = os.environ.get("ANGEBOTE_STUFE", "schnell").strip().lower()
-
 # --- Datenschutz: Personenbezug gegenueber der KI ---
 # AUS-by-default: die App sendet KEINE Klarnamen von Haushaltsmitgliedern an das Modell und
 # speichert personenbezogene Infos nicht mehr proaktiv aus dem Chat-Verlauf. Personen werden
@@ -109,12 +110,6 @@ ANGEBOTE_STUFE = os.environ.get("ANGEBOTE_STUFE", "schnell").strip().lower()
 # bleibt vollstaendig erhalten (Portionsfaktoren, Allergien strikt ausschliessen) – nur die
 # Identitaet wird nicht uebertragen. Mit KI_PERSONENNAMEN=1 gilt wieder das alte Verhalten.
 KI_PERSONENNAMEN = os.environ.get("KI_PERSONENNAMEN", "0").strip().lower() in ("1", "true", "yes", "on")
-
-# --- Spracheingabe (Audio -> Text via KI) ---
-# AUS-by-default: der Sprachpfad war weder im Monatskontingent gezaehlt noch ratenbegrenzt und
-# lief auf dem Tarif-Modell des Kontos (also ggf. dem teuren). Bis er gedeckelt ist, bleibt er
-# abgeschaltet; das Frontend blendet die Mikrofon-Knoepfe passend aus (settings.js).
-SPRACHEINGABE_AKTIV = os.environ.get("SPRACHEINGABE_AKTIV", "0").strip().lower() in ("1", "true", "yes", "on")
 
 # --- Sentry (Fehler-Monitoring, optional) ---
 # Secure/konservativ-by-default AUS: ohne DSN wird Sentry gar nicht importiert/initialisiert
