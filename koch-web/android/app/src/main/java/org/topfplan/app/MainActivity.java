@@ -1,4 +1,4 @@
-package com.sapiokitchen.app;
+package org.topfplan.app;
 
 import com.getcapacitor.BridgeActivity;
 

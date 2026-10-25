@@ -75,7 +75,7 @@ async def checkout(account_id: int, betrag_cents: int, origin: str) -> dict:
 
 
 async def checkout_abo(account_id: int, origin: str) -> dict:
-    """Startet das wiederkehrende Sapio-Abo (Stripe Subscription-Checkout). account_id
+    """Startet das wiederkehrende Topfplan-Abo (Stripe Subscription-Checkout). account_id
     liegt in der Session- UND der Subscription-Metadaten, damit spätere invoice.paid-/
     subscription-Events das Konto sicher auflösen können."""
     if not verfuegbar() or not config.STRIPE_PRICE_ABO:

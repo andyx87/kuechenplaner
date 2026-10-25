@@ -45,7 +45,7 @@ log = logging.getLogger("koch")
 ARTEN = ("ordentlich", "ausserordentlich")
 TOKEN_GUELTIG_STUNDEN = 1
 EMAIL_MAX_ZEICHEN = 254                  # RFC 5321: längste zulässige Adresse (K-2)
-VERTRAG_TEXT = "Sapio-Abo"               # K-3: fester Vertragstext für unauthentifizierte Link-Mail
+VERTRAG_TEXT = "Topfplan-Abo"               # K-3: fester Vertragstext für unauthentifizierte Link-Mail
 
 # Wirkungs-Stände der Nachweiszeile in `kuendigung`:
 WIRKUNG_WARTET = "wartet_bestaetigung"   # Zugang protokolliert, Bestätigung steht aus
@@ -56,7 +56,7 @@ WIRKUNG_FEHLER = "fehler"                # Stripe-Aufruf fehlgeschlagen (K-4: Li
                                          # werden – kein stiller Fehlschlag)
 
 # K-3: Der freie Text `grund` stammt vom unauthentifizierten Absender. In der Link-Mail
-# (Stufe 1) wird er gekappt, damit niemand ~2 KB eigenen Text als Absender „Sapio" an
+# (Stufe 1) wird er gekappt, damit niemand ~2 KB eigenen Text als Absender „Topfplan" an
 # fremde Adressen schicken kann. Vollständig steht er erst in der Bestätigungsmail (Stufe 2),
 # die nach dem Klick – also an den nachgewiesenen Postfach-Inhaber – geht.
 GRUND_KURZ_ZEICHEN = 200
@@ -117,7 +117,7 @@ async def annehmen(daten: dict, ip: str | None = None, background=None) -> dict:
     # eine Megabyte-„E-Mail" wird abgewiesen, statt in Nachweis, Mail und Rate-Limit zu
     # landen. Formatfehler sind keine Existenz-Auskunft, die Antwort bleibt neutral (S-2).
     if "@" not in email or "." not in email or len(email) > EMAIL_MAX_ZEICHEN:
-        return {"error": "Bitte die E-Mail-Adresse deines Sapio-Kontos angeben."}
+        return {"error": "Bitte die E-Mail-Adresse deines Topfplan-Kontos angeben."}
     art = _text(daten.get("art")).lower() or "ordentlich"
     if art not in ARTEN:
         art = "ordentlich"
@@ -176,7 +176,7 @@ async def annehmen(daten: dict, ip: str | None = None, background=None) -> dict:
         "art": art,
         "hinweis": ("Deine Kündigung ist eingegangen und gilt als zu diesem Zeitpunkt "
                     "erklärt. Wir haben dir eine E-Mail geschickt: Falls zu dieser Adresse "
-                    "ein Sapio-Konto besteht, enthält sie einen Bestätigungslink – erst "
+                    "ein Topfplan-Konto besteht, enthält sie einen Bestätigungslink – erst "
                     "dein Klick darauf beendet das Abo zum Ende der bereits bezahlten "
                     "Laufzeit. Bitte prüfe auch den Spam-Ordner."),
     }
@@ -464,7 +464,7 @@ def zugang_html(d: dict) -> str:
     nicht authentifiziert. Deshalb stehen hier keine frei wählbaren Texte: `name` fällt
     weg, `vertrag` wird durch den festen Vertragstext ersetzt und `grund` ist auf
     `GRUND_KURZ_ZEICHEN` gekappt. So kann niemand mehrere Kilobyte eigenen Text (inklusive
-    automatisch verlinkter URLs) als Absender „Sapio" an fremde Adressen zustellen. Der
+    automatisch verlinkter URLs) als Absender „Topfplan" an fremde Adressen zustellen. Der
     vollständige Inhalt der Erklärung folgt in der Bestätigungsmail nach dem Klick, die
     nachweislich an den Postfach-Inhaber geht."""
     def z(v):

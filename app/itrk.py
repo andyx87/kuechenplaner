@@ -203,7 +203,7 @@ async def handle(body: bytes) -> str:
         return _wrap(_META)
     if action == "getaccountlist":
         # Spec: KEIN <accounts>-Wrapper; Felder accountid/accountname (ohne Unterstrich).
-        return _wrap("<account><accountid>0</accountid><accountname>Sapio</accountname></account>")
+        return _wrap("<account><accountid>0</accountid><accountname>Topfplan</accountname></account>")
     if action == "push":
         typ = g("rechtstext_type").lower()
         if typ not in GUELTIGE_TYPEN:

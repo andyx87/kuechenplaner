@@ -101,7 +101,7 @@ export default function Login({ onAuthed, beta = null }) {
           <div className="flex items-center gap-5">
             <EmblemKachel large />
             <div>
-              <div className="sapio-wortmarke text-5xl">Sapio</div>
+              <div className="topfplan-wortmarke text-5xl">Topfplan</div>
               <div className="label-mono mt-2 text-terracotta">Genuss mit Verstand</div>
             </div>
           </div>
@@ -124,7 +124,7 @@ export default function Login({ onAuthed, beta = null }) {
         {/* Marken-Kopf (Mobil) */}
         <div className="mb-8 flex flex-col items-center text-center lg:hidden">
           <EmblemKachel />
-          <div className="sapio-wortmarke mt-5 text-3xl">Sapio</div>
+          <div className="topfplan-wortmarke mt-5 text-3xl">Topfplan</div>
           <div className="label-mono mt-1.5 text-terracotta">Genuss mit Verstand</div>
         </div>
 
@@ -134,7 +134,7 @@ export default function Login({ onAuthed, beta = null }) {
           </h2>
           <p className="mt-2 text-sm text-muted">
             {betaOffen && !istLogin
-              ? `Du testest Sapio ${beta.trial_tage} Tage lang mit allen Funktionen – kostenlos und ohne Zahlungsdaten.`
+              ? `Du testest Topfplan ${beta.trial_tage} Tage lang mit allen Funktionen – kostenlos und ohne Zahlungsdaten.`
               : istLogin ? 'Schön, dass du wieder da bist.' : 'In einer Minute startklar.'}
           </p>
 
@@ -157,7 +157,7 @@ export default function Login({ onAuthed, beta = null }) {
               <div className="mt-5 rounded-2xl border border-line bg-surface p-4">
                 <p className="label-mono text-muted2">Beta · {beta.name}</p>
                 <p className="mt-2 text-sm text-ink/80">
-                  Die {beta.plaetze} Beta-Plätze für diesen Link sind belegt. Du kannst Sapio
+                  Die {beta.plaetze} Beta-Plätze für diesen Link sind belegt. Du kannst Topfplan
                   trotzdem nutzen: Registriere dich normal – alle Funktionen ohne KI sind frei,
                   für die KI gibt es ein monatliches Gratis-Kontingent.
                 </p>

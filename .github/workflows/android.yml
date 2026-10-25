@@ -1,6 +1,6 @@
 name: Android Build
 
-# Baut die Sapio-Android-App (Capacitor-8-Wrapper der koch-web-PWA, targetSdk 36).
+# Baut die Topfplan-Android-App (Capacitor-8-Wrapper der koch-web-PWA, targetSdk 36).
 # - Debug-APK: sideloadbar zum Testen auf dem Handy.
 # - Signierter AAB (app-release.aab): Upload-Artefakt für die Google Play Console.
 #   Wird nur gebaut, wenn die Keystore-Secrets im Repo hinterlegt sind
@@ -56,7 +56,7 @@ jobs:
       - name: APK als Artefakt hochladen
         uses: actions/upload-artifact@v5
         with:
-          name: sapio-android-debug
+          name: topfplan-android-debug
           path: koch-web/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -99,6 +99,6 @@ jobs:
         if: ${{ env.ANDROID_KEYSTORE_PASSWORD != '' }}
         uses: actions/upload-artifact@v5
         with:
-          name: sapio-android-aab
+          name: topfplan-android-aab
           path: koch-web/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error

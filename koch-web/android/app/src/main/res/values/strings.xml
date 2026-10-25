@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Sapio</string>
-    <string name="title_activity_main">Sapio</string>
-    <string name="package_name">com.sapio_kitchen</string>
-    <string name="custom_url_scheme">com.sapiokitchen.app</string>
+    <string name="app_name">Topfplan</string>
+    <string name="title_activity_main">Topfplan</string>
+    <string name="package_name">org.topfplan.app</string>
+    <string name="custom_url_scheme">org.topfplan.app</string>
 </resources>

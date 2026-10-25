@@ -250,7 +250,7 @@ export default function App({ auth, onLogout }) {
     const key = abo ? 'abo' : 'credits'
     const sauber = () => { p.delete(key); const s = p.toString(); window.history.replaceState({}, '', window.location.pathname + (s ? '?' + s : '')) }
     if ((abo || cr) === 'abbruch') { notify(abo ? 'Abo abgebrochen' : 'Kauf abgebrochen', 'err'); sauber(); return }
-    notify(abo ? 'Danke! Dein Sapio-Abo ist in wenigen Sekunden aktiv.' : 'Danke! Deine Foto-Credits sind gleich verfügbar.', 'ok')
+    notify(abo ? 'Danke! Dein Topfplan-Abo ist in wenigen Sekunden aktiv.' : 'Danke! Deine Foto-Credits sind gleich verfügbar.', 'ok')
     sauber()
   }, [notify])
 
@@ -354,7 +354,7 @@ export default function App({ auth, onLogout }) {
       <header className="mb-3 flex items-start justify-between gap-3 sm:mb-6">
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="sapio-wortmarke text-3xl leading-none sm:text-4xl">Sapio</h1>
+            <h1 className="topfplan-wortmarke text-3xl leading-none sm:text-4xl">Topfplan</h1>
             <p className="label-mono mt-1 text-terracotta">Genuss mit Verstand</p>
           </div>
         </div>
@@ -520,7 +520,7 @@ export default function App({ auth, onLogout }) {
                   if (!('Notification' in window)) { notify('Benachrichtigungen werden von diesem Browser nicht unterstützt', 'err'); return }
                   try {
                     const perm = await Notification.requestPermission()
-                    if (perm === 'granted') { notify('Benachrichtigungen aktiviert'); try { new Notification('Sapio', { body: 'Benachrichtigungen sind aktiv – z.B. für Koch-Timer.', icon: '/icon-192.png' }) } catch { /* ignore */ } }
+                    if (perm === 'granted') { notify('Benachrichtigungen aktiviert'); try { new Notification('Topfplan', { body: 'Benachrichtigungen sind aktiv – z.B. für Koch-Timer.', icon: '/icon-192.png' }) } catch { /* ignore */ } }
                     else notify('Benachrichtigungen nicht erlaubt', 'err')
                   } catch { notify('Konnte Benachrichtigungen nicht aktivieren', 'err') }
                 }}
@@ -549,7 +549,7 @@ export default function App({ auth, onLogout }) {
               return (
                 <div className="rounded-xl border border-line p-3">
                   <p className="mb-1 text-sm font-semibold">Vorrat</p>
-                  <p className="mb-2 text-xs text-ink/55">Wähle, wie Sapio deinen Vorrat nutzt.</p>
+                  <p className="mb-2 text-xs text-ink/55">Wähle, wie Topfplan deinen Vorrat nutzt.</p>
                   <label className="flex cursor-pointer items-start gap-2 py-1">
                     <input type="radio" name="vorratwahl" checked={wahl === 'voll'} onChange={() => waehleVorrat('voll')} className="mt-0.5 accent-terracotta" />
                     <span><span className="font-medium">Vollständige Funktion</span><br /><span className="text-xs text-ink/55">Vorrat in der App pflegen: beim Einkauf-Abhaken die gekaufte Menge erfassen &amp; übernehmen; Rezepte werden aus deinem gespeicherten Vorrat geplant.</span></span>

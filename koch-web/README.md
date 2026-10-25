@@ -1,4 +1,4 @@
-# Sapio – Web-App
+# Topfplan – Web-App
 
 React + Vite + Tailwind, selbst gehostete Fonts (kein externes CDN). Die App spricht
 relativ mit `/api/...`; im Betrieb liegt sie hinter demselben nginx wie die API (kein CORS),

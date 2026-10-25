@@ -34,7 +34,7 @@ function Anfordern({ onClose }) {
 
   async function kuendigen() {
     setFehler('')
-    if (!email.trim()) { setFehler('Bitte die E-Mail-Adresse deines Sapio-Kontos angeben.'); return }
+    if (!email.trim()) { setFehler('Bitte die E-Mail-Adresse deines Topfplan-Kontos angeben.'); return }
     if (art === 'ausserordentlich' && !grund.trim()) {
       setFehler('Für eine außerordentliche Kündigung bitte einen Grund angeben.'); return
     }
@@ -42,7 +42,7 @@ function Anfordern({ onClose }) {
     try {
       const res = await api.kuendigungSenden({
         email: email.trim(), name: name.trim(), art, grund: grund.trim(),
-        zum_datum: zumDatum || null, vertrag: 'Sapio-Abo',
+        zum_datum: zumDatum || null, vertrag: 'Topfplan-Abo',
       })
       setQuittung(res)
     } catch (e) {
@@ -72,7 +72,7 @@ function Anfordern({ onClose }) {
           </p>
         </div>
         <button onClick={onClose} className="mt-6 text-sm text-muted2 hover:text-ink hover:underline">
-          Zurück zu Sapio
+          Zurück zu Topfplan
         </button>
       </div>
     )
@@ -82,7 +82,7 @@ function Anfordern({ onClose }) {
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
       <h1 className="font-dish text-4xl leading-tight text-ink">Vertrag kündigen</h1>
       <p className="mt-3 text-sm text-muted">
-        Hier kündigst du dein Sapio-Abo – ohne Anmeldung. Fülle die Felder aus und bestätige
+        Hier kündigst du dein Topfplan-Abo – ohne Anmeldung. Fülle die Felder aus und bestätige
         unten. Wir protokollieren deine Kündigung sofort und schicken dir eine E-Mail mit
         einem Bestätigungslink; erst dein Klick darauf beendet das Abo. So kann niemand
         allein mit deiner E-Mail-Adresse eine Kündigung auslösen.
@@ -104,7 +104,7 @@ function Anfordern({ onClose }) {
         </label>
 
         <label className="block">
-          <span className="label-mono mb-2 block text-muted2">E-Mail deines Sapio-Kontos *</span>
+          <span className="label-mono mb-2 block text-muted2">E-Mail deines Topfplan-Kontos *</span>
           <input className={input} type="email" autoComplete="email" value={email}
             onChange={(e) => setEmail(e.target.value)} placeholder="du@beispiel.de" />
         </label>
@@ -127,7 +127,7 @@ function Anfordern({ onClose }) {
           </span>
           <textarea rows={3} className={input + ' resize-none'} value={grund}
             onChange={(e) => setGrund(e.target.value)}
-            placeholder={art === 'ausserordentlich' ? 'Wichtiger Grund für die außerordentliche Kündigung' : 'Freiwillig – hilft uns, Sapio besser zu machen.'} />
+            placeholder={art === 'ausserordentlich' ? 'Wichtiger Grund für die außerordentliche Kündigung' : 'Freiwillig – hilft uns, Topfplan besser zu machen.'} />
         </label>
 
         {fehler && <p className="rounded-xl border border-terracotta/40 bg-terracotta/10 px-3 py-2 text-sm text-terracotta-deep">{fehler}</p>}
@@ -198,7 +198,7 @@ function Bestaetigen({ token, onClose }) {
           <p className="mt-4 text-sm text-ink/80">{quittung.hinweis}</p>
         </div>
         <button onClick={onClose} className="mt-6 text-sm text-muted2 hover:text-ink hover:underline">
-          Zurück zu Sapio
+          Zurück zu Topfplan
         </button>
       </div>
     )
@@ -208,7 +208,7 @@ function Bestaetigen({ token, onClose }) {
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
       <h1 className="font-dish text-4xl leading-tight text-ink">Kündigung bestätigen</h1>
       <p className="mt-3 text-sm text-muted">
-        Du hast die Kündigung deines Sapio-Abos angefordert – sie gilt bereits als zum
+        Du hast die Kündigung deines Topfplan-Abos angefordert – sie gilt bereits als zum
         Zeitpunkt des Eingangs erklärt. Bestätige hier, damit wir das Abo zum Ende der
         bereits bezahlten Laufzeit beenden. Dein Konto läuft danach in der kostenlosen
         Version weiter; Rezepte, Pläne und Vorräte bleiben erhalten. Die Bestätigung mit

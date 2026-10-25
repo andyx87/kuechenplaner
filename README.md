@@ -1,6 +1,6 @@
-# Sapio – KI-Küchenassistent
+# Topfplan – KI-Küchenassistent
 
-Sapio ist eine Web-App (PWA, optional als Android-App über Capacitor) für die Küche im
+Topfplan ist eine Web-App (PWA, optional als Android-App über Capacitor) für die Küche im
 Haushalt:
 
 - **Vorrat** verwalten – manuell oder per Foto (KI schlägt Positionen vor, du prüfst sie)
@@ -12,6 +12,9 @@ Haushalt:
 - Mehrere Haushalte (Mandanten) mit Mitgliedern, optionale Abrechnung über Stripe
 
 Code und Kommentare sind überwiegend auf Deutsch.
+
+> Icons, Splash- und Vorschaubilder sind neutrale Platzhalter (`brand/build_placeholder.py`).
+> TODO: echtes Artwork für Topfplan.
 
 ## Architektur
 

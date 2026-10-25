@@ -33,7 +33,7 @@ def im_hintergrund(coro) -> asyncio.Task:
     Die Antwort auf token-auslösende Requests (Kontolöschung, Passwort-Reset) darf nicht
     auf den HTTP-Call an Resend (Timeout bis 20 s) warten: Der Versand passiert nur, wenn
     das Konto existiert – unterschiedliche Antwortzeiten würden sonst verraten, welche
-    E-Mail-Adressen Sapio-Konten haben (Enumeration). Fehler landen im Log; `send` selbst
+    E-Mail-Adressen Topfplan-Konten haben (Enumeration). Fehler landen im Log; `send` selbst
     wirft ohnehin nicht."""
     task = asyncio.create_task(coro)
     _offene_tasks.add(task)
@@ -80,7 +80,7 @@ def _layout(titel: str, intro: str, button_text: str, button_url: str, hinweis: 
     t, i, b = _html.escape(titel), intro, _html.escape(button_text)
     u = _html.escape(button_url, quote=True)
     base = _html.escape(config.APP_BASE_URL, quote=True)
-    _fuss = ['<b style="color:#6f6657">Sapio</b>']
+    _fuss = ['<b style="color:#6f6657">Topfplan</b>']
     if config.OPERATOR_NAME:
         _fuss.append(_html.escape(config.OPERATOR_NAME))
     if config.SUPPORT_EMAIL:
@@ -92,9 +92,9 @@ def _layout(titel: str, intro: str, button_text: str, button_url: str, hinweis: 
 <!doctype html><html lang="de"><body style="margin:0;background:#f7f1e8;font-family:'Segoe UI',Helvetica,Arial,sans-serif">
   <div style="max-width:520px;margin:0 auto;padding:32px 22px">
     <div style="text-align:center;margin-bottom:24px">
-      <img src="{base}/icon-192.png" width="64" height="64" alt="Sapio"
+      <img src="{base}/icon-192.png" width="64" height="64" alt="Topfplan"
            style="display:inline-block;border-radius:16px;border:0" />
-      <div style="font-weight:800;letter-spacing:-.02em;font-size:24px;color:#c8823c;margin-top:10px">Sapio</div>
+      <div style="font-weight:800;letter-spacing:-.02em;font-size:24px;color:#c8823c;margin-top:10px">Topfplan</div>
       <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#c8823c;margin-top:3px">Genuss mit Verstand</div>
     </div>
     <div style="background:#fff;border:1px solid rgba(40,30,15,.1);border-radius:18px;padding:30px 28px;box-shadow:0 10px 30px -16px rgba(80,60,30,.25)">
@@ -107,7 +107,7 @@ def _layout(titel: str, intro: str, button_text: str, button_url: str, hinweis: 
       {extra}
     </div>
     <div style="text-align:center;color:#9c9384;font-size:12px;line-height:1.7;margin-top:22px">
-      <p style="margin:0 0 4px">Diese E-Mail wurde im Zusammenhang mit deinem Sapio-Konto versendet.</p>
+      <p style="margin:0 0 4px">Diese E-Mail wurde im Zusammenhang mit deinem Topfplan-Konto versendet.</p>
       <p style="margin:0 0 4px">{fusszeile}</p>
       <p style="margin:0"><a href="{base}/?recht=impressum" style="color:#9c9384;text-decoration:underline">Impressum</a> &nbsp;·&nbsp; <a href="{base}/?recht=datenschutz" style="color:#9c9384;text-decoration:underline">Datenschutz</a></p>
     </div>
@@ -122,17 +122,17 @@ async def send_einladung(email: str, token: str, haushalt: str | None = None,
     link = f"{config.APP_BASE_URL}/?einladung={token}"
     wer = f" von <b>{_html.escape(eingeladen_von)}</b>" if eingeladen_von else ""
     hh = f" zum Haushalt <b>{_html.escape(haushalt)}</b>" if haushalt else ""
-    intro = (f"Du wurdest{wer} eingeladen, bei <b>Sapio</b>{hh} mitzumachen – dem KI-Küchenassistenten "
+    intro = (f"Du wurdest{wer} eingeladen, bei <b>Topfplan</b>{hh} mitzumachen – dem KI-Küchenassistenten "
              f"für Rezepte aus Vorrat, Angeboten und für eure Geräte. Klick auf den Button, "
              f"um Name und Passwort festzulegen.")
-    return await send(email, "Deine Einladung zu Sapio",
-                      _layout("Willkommen bei Sapio!", intro, "Einladung annehmen", link,
+    return await send(email, "Deine Einladung zu Topfplan",
+                      _layout("Willkommen bei Topfplan!", intro, "Einladung annehmen", link,
                               "Du hast diese Einladung nicht erwartet? Dann ignoriere diese E-Mail einfach."))
 
 
 async def send_passwort_reset(email: str, token: str) -> dict:
     link = f"{config.APP_BASE_URL}/?reset={token}"
-    intro = ("Du hast angefragt, dein Sapio-Passwort zurückzusetzen. Über den Button kannst du "
+    intro = ("Du hast angefragt, dein Topfplan-Passwort zurückzusetzen. Über den Button kannst du "
              "ein neues Passwort vergeben. Der Link ist aus Sicherheitsgründen begrenzt gültig.")
     return await send(email, "Passwort zurücksetzen",
                       _layout("Passwort zurücksetzen", intro, "Neues Passwort wählen", link,
@@ -144,10 +144,10 @@ async def send_konto_existiert(email: str) -> dict:
     vergebenen E-Mail bestätigt die API-Antwort die Existenz NICHT. Stattdessen bekommt der
     Inhaber der Adresse hier den Hinweis, sich anzumelden oder das Passwort zurückzusetzen."""
     link = f"{config.APP_BASE_URL}/?reset=anfordern"
-    intro = ("für diese E-Mail-Adresse besteht bereits ein Sapio-Konto. Falls du das warst und "
+    intro = ("für diese E-Mail-Adresse besteht bereits ein Topfplan-Konto. Falls du das warst und "
              "dich anmelden möchtest, nutze deine Zugangsdaten – oder setze über den Button ein "
              "neues Passwort. Warst du das nicht, kannst du diese E-Mail einfach ignorieren.")
-    return await send(email, "Dein Sapio-Konto",
+    return await send(email, "Dein Topfplan-Konto",
                       _layout("Du hast bereits ein Konto", intro, "Passwort zurücksetzen", link,
                               "Diese Nachricht erhältst du, weil jemand versucht hat, sich mit dieser "
                               "Adresse zu registrieren."))
@@ -156,10 +156,10 @@ async def send_konto_existiert(email: str) -> dict:
 async def send_verifizierung(email: str, token: str) -> dict:
     link = f"{config.APP_BASE_URL}/?verify={token}"
     intro = ("Schön, dass du dabei bist! Bitte bestätige deine E-Mail-Adresse, "
-             "damit dein Sapio-Konto vollständig aktiv ist.")
+             "damit dein Topfplan-Konto vollständig aktiv ist.")
     return await send(email, "E-Mail-Adresse bestätigen",
                       _layout("E-Mail bestätigen", intro, "E-Mail bestätigen", link,
-                              "Wenn du dich nicht bei Sapio registriert hast, ignoriere diese E-Mail."))
+                              "Wenn du dich nicht bei Topfplan registriert hast, ignoriere diese E-Mail."))
 
 
 async def send_kuendigung_link(email: str, token: str, daten: dict) -> dict:
@@ -188,7 +188,7 @@ async def send_kuendigung_bestaetigung(email: str, daten: dict) -> dict:
     from . import kuendigung as _k
     intro = _k.bestaetigung_html(daten)
     return await send(email, "Bestätigung deiner Kündigung",
-                      _layout("Kündigung bestätigt", intro, "Zu Sapio", config.APP_BASE_URL,
+                      _layout("Kündigung bestätigt", intro, "Zu Topfplan", config.APP_BASE_URL,
                               "Diese Bestätigung dient als Nachweis – bitte bewahre sie auf. "
                               "Fragen? Antworte einfach auf diese E-Mail."))
 
@@ -202,7 +202,7 @@ async def send_konto_loeschung(email: str, token: str) -> dict:
     # (AuthGate.jsx, history.replaceState).
     # D3 (Sicherheitsprüfung AND-38 / AND-75): Hinweis auf sofortiges Abo-Ende und Verfall bezahlter Restlaufzeit.
     link = f"{config.APP_BASE_URL}/konto-loeschen#loesch={token}"
-    intro = ("du hast angefordert, dein <b>Sapio-Konto dauerhaft zu löschen</b>. Bitte "
+    intro = ("du hast angefordert, dein <b>Topfplan-Konto dauerhaft zu löschen</b>. Bitte "
              "bestätige das über den Button – erst dann wird gelöscht. Deine Rezepte, "
              "Pläne, Vorräte und persönlichen Daten werden dabei entfernt; dieser "
              "Schritt kann nicht rückgängig gemacht werden. "
@@ -215,23 +215,23 @@ async def send_konto_loeschung(email: str, token: str) -> dict:
 
 async def send_konto_geloescht(email: str) -> dict:
     """Abschlussbestätigung, nachdem die Kontolöschung ausgeführt wurde (Nachweis)."""
-    intro = ("dein <b>Sapio-Konto wurde gelöscht</b>. Deine Rezepte, Pläne, Vorräte und "
+    intro = ("dein <b>Topfplan-Konto wurde gelöscht</b>. Deine Rezepte, Pläne, Vorräte und "
              "persönlichen Daten sind entfernt. Nachweise, die wir gesetzlich aufbewahren "
              "müssen (z. B. Kündigungsprotokoll, Buchungsbelege), bleiben erhalten.")
-    return await send(email, "Dein Sapio-Konto wurde gelöscht",
-                      _layout("Konto gelöscht", intro, "Zu Sapio", config.APP_BASE_URL,
+    return await send(email, "Dein Topfplan-Konto wurde gelöscht",
+                      _layout("Konto gelöscht", intro, "Zu Topfplan", config.APP_BASE_URL,
                               "Schade, dass du gehst. Diese E-Mail dient dir als Bestätigung. "
                               "Fragen? Antworte einfach auf diese E-Mail."))
 
 
 async def send_beta_beendet(email: str, inaktiv_tage: int) -> dict:
     """Info an Beta-Tester: Vollzugang wegen Inaktivität beendet, Konto läuft gratis weiter."""
-    intro = (f"du warst länger als {int(inaktiv_tage)} Tage nicht in Sapio aktiv, deshalb haben "
+    intro = (f"du warst länger als {int(inaktiv_tage)} Tage nicht in Topfplan aktiv, deshalb haben "
              "wir deinen Beta-Vollzugang beendet und den Platz an die Warteliste weitergegeben. "
              "<b>Dein Konto und alle Daten bleiben erhalten</b> – Rezepte, Wochenplan, "
              "Einkaufsliste und Vorrat kannst du in der kostenlosen Version weiter nutzen, "
              "inklusive eines monatlichen Gratis-Kontingents für die KI-Funktionen.")
-    return await send(email, "Dein Sapio-Beta-Zugang wurde beendet",
-                      _layout("Beta-Zugang beendet", intro, "Weiter mit Sapio", config.APP_BASE_URL,
+    return await send(email, "Dein Topfplan-Beta-Zugang wurde beendet",
+                      _layout("Beta-Zugang beendet", intro, "Weiter mit Topfplan", config.APP_BASE_URL,
                               "Du willst doch weiter intensiv testen? Antworte einfach auf diese "
                               "E-Mail – wir schalten dich gern wieder frei."))

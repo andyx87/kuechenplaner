@@ -197,7 +197,7 @@ export default function Personen({ notify }) {
               try {
                 const inv = await api.einladungErstellen('')
                 const url = `${WEB_URL}/?einladung=${inv.token}`
-                const shareData = { title: 'Sapio', text: 'Tritt unserem Haushalt bei Sapio bei:', url }
+                const shareData = { title: 'Topfplan', text: 'Tritt unserem Haushalt bei Topfplan bei:', url }
                 if (navigator.share) { try { await navigator.share(shareData) } catch { /* abgebrochen */ } }
                 else if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(url); notify('Einladungslink kopiert') }
                 else notify(`Einladungslink: ${url}`)

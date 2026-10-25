@@ -9,7 +9,7 @@ function Rahmen({ children }) {
     <div className="flex min-h-screen flex-col items-center justify-center px-6 py-10">
       <div className="mb-8 flex flex-col items-center text-center">
         <LogoMark size={88} />
-        <div className="sapio-wortmarke mt-5 text-3xl">Sapio</div>
+        <div className="topfplan-wortmarke mt-5 text-3xl">Topfplan</div>
         <div className="label-mono mt-1.5 text-terracotta">Genuss mit Verstand</div>
       </div>
       <div className="w-full max-w-sm">{children}</div>
@@ -53,7 +53,7 @@ export function PasswortReset({ token, onFertig }) {
   return (
     <Rahmen>
       <h2 className="font-dish text-3xl leading-tight text-ink">Neues Passwort wählen</h2>
-      <p className="mt-2 text-sm text-muted">Vergib ein neues Passwort für dein Sapio-Konto.</p>
+      <p className="mt-2 text-sm text-muted">Vergib ein neues Passwort für dein Topfplan-Konto.</p>
       <div className="mt-6 space-y-4">
         <label className="block">
           <span className="label-mono mb-2 block text-muted2">Neues Passwort</span>
@@ -96,7 +96,7 @@ export function EmailVerify({ token, onFertig }) {
         <div className="text-center">
           <h2 className="font-dish text-3xl leading-tight text-ink">E-Mail bestätigt ✓</h2>
           <p className="mt-2 text-sm text-muted">Danke! Deine E-Mail-Adresse ist jetzt bestätigt.</p>
-          <Button className="mt-6 w-full py-4 text-base" onClick={onFertig}>Weiter zu Sapio</Button>
+          <Button className="mt-6 w-full py-4 text-base" onClick={onFertig}>Weiter zu Topfplan</Button>
         </div>
       )}
       {status === 'fehler' && (

@@ -1,12 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.sapiokitchen.app"
+    namespace = "org.topfplan.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        // Store-Kennung = Paketname der App in der Play Console (dort beim Anlegen festgelegt,
-        // nicht mehr änderbar). namespace/Java-Paket bleiben com.sapiokitchen.app.
-        applicationId = "com.sapio_kitchen"
+        applicationId = "org.topfplan.app"
         minSdkVersion = rootProject.ext.minSdkVersion
         targetSdkVersion = rootProject.ext.targetSdkVersion
         versionCode = Integer.parseInt(System.getenv("ANDROID_VERSION_CODE") ?: "1")

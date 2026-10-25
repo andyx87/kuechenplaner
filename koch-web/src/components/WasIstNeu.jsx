@@ -13,15 +13,15 @@ export default function WasIstNeu({ onClose }) {
     </div>
   )
   return (
-    <Modal open onClose={onClose} title="Was ist neu bei Sapio">
+    <Modal open onClose={onClose} title="Was ist neu bei Topfplan">
       <div className="space-y-3 text-sm">
-        <p className="text-muted">Wir haben Sapio umgestellt – hier das Wichtigste:</p>
+        <p className="text-muted">Wir haben Topfplan umgestellt – hier das Wichtigste:</p>
         <div className="space-y-2.5">
           {/* Preise/Kontingente kommen aus der Preisliste; solange sie lädt, bleiben die
               Punkte ohne Zahlen aus – lieber keine Angabe als eine veraltete. */}
           {p && (
             <>
-              <Punkt icon="rocket" farbe="text-terracotta" titel={`Sapio-Abo (${euro(p.abo.preis_cents)}/Monat)`}
+              <Punkt icon="rocket" farbe="text-terracotta" titel={`Topfplan-Abo (${euro(p.abo.preis_cents)}/Monat)`}
                 text={`alle KI-Funktionen, Text ${kontingent(p.abo.ki_limit)}, ${kontingent(p.abo.bild_limit, 'Rezeptbilder')} pro Monat. Kein Guthaben-Aufladen mehr.`} />
               <Punkt icon="check" farbe="text-olive" titel="Gratis nutzbar"
                 text={`alle Nicht-KI-Funktionen frei, plus ${p.gratis.ki_limit} KI-Aktionen + ${p.gratis.bild_limit} Bilder pro Monat zum Ausprobieren.`} />

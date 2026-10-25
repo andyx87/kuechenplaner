@@ -95,7 +95,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
 
         {step === 0 && (
           <div className="space-y-3">
-            <h3 className="inline-flex items-center gap-1.5 font-dish text-4xl leading-tight text-ink">Willkommen bei Sapio! <Icon name="hand" size={20} /></h3>
+            <h3 className="inline-flex items-center gap-1.5 font-dish text-4xl leading-tight text-ink">Willkommen bei Topfplan! <Icon name="hand" size={20} /></h3>
             <p className="text-sm text-muted">In wenigen Schritten ist alles startklar: wer mitisst, welche Küchengeräte ihr habt und ob du den Vorrat pflegen möchtest. Danach zeige ich dir kurz die KI-Funktionen.</p>
             <p className="inline-flex items-center gap-1 text-xs text-muted2">Du kannst jederzeit überspringen und später in den <Icon name="settings" size={16} /> Einstellungen erneut starten.</p>
           </div>
@@ -182,7 +182,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
             <h3 className="font-display text-xl">{IST_NATIVE ? 'Kostenlos & KI-Kontingent' : <>Gratis &amp; Abo</>}</h3>
             <p className="text-sm text-muted">
               Fast alles ist <b>kostenlos</b>: Rezepte, Wochenplan, Einkaufsliste, Vorrat. Für die
-              <b> KI-Funktionen</b> gibt es ein monatliches Kontingent{IST_NATIVE ? '.' : ' – einen kleinen Gratis-Rahmen, für mehr das Sapio-Abo.'}
+              <b> KI-Funktionen</b> gibt es ein monatliches Kontingent{IST_NATIVE ? '.' : ' – einen kleinen Gratis-Rahmen, für mehr das Topfplan-Abo.'}
             </p>
             <ul className="space-y-1.5 text-sm text-muted">
               {/* Zahlen aus der Preisliste (GET /api/preise) – kein Preis im Code. */}
@@ -191,7 +191,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
                   <li className="flex items-start gap-1.5"><Icon name="gift" size={16} className="mt-0.5 shrink-0 text-olive" /> <span><b>Gratis:</b> alle Nicht-KI-Funktionen frei, plus <b>{preise.gratis.ki_limit} KI-Aktionen + {preise.gratis.bild_limit} Bilder pro Monat</b>.</span></li>
                   {!IST_NATIVE && (
                     <>
-                      <li className="flex items-start gap-1.5"><Icon name="rocket" size={16} className="mt-0.5 shrink-0 text-terracotta" /> <span><b>Sapio-Abo ({euro(preise.abo.preis_cents)}/Monat):</b> alle KI-Funktionen, Text {kontingent(preise.abo.ki_limit)}, <b>{kontingent(preise.abo.bild_limit, 'Rezeptbilder')}/Monat</b>.</span></li>
+                      <li className="flex items-start gap-1.5"><Icon name="rocket" size={16} className="mt-0.5 shrink-0 text-terracotta" /> <span><b>Topfplan-Abo ({euro(preise.abo.preis_cents)}/Monat):</b> alle KI-Funktionen, Text {kontingent(preise.abo.ki_limit)}, <b>{kontingent(preise.abo.bild_limit, 'Rezeptbilder')}/Monat</b>.</span></li>
                       <li className="flex items-start gap-1.5"><Icon name="image" size={16} className="mt-0.5 shrink-0" /> <span><b>Foto-Credits:</b> mehr Bilder? {preise.foto_pack.credits} Stück für {euro(preise.foto_pack.preis_cents)} – einmalig, ohne Abo.</span></li>
                     </>
                   )}
@@ -212,7 +212,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
               <li className="flex items-start gap-1.5"><Icon name="image" size={16} className="mt-0.5 shrink-0" /> <span><b>Rezeptbilder</b>: beim Erstellen erzeugen lassen (abwählbar) oder eigenes Foto hochladen. Übernimmst du ein Rezept aus der Bibliothek, kommt sein Bild kostenlos mit.</span></li>
               <li className="flex items-start gap-1.5"><Icon name="tag" size={16} className="mt-0.5 shrink-0" /> <span><b>Angebote</b>: Prospekt fotografieren/hochladen → die KI erkennt die Angebote und macht Koch-Vorschläge.</span></li>
             </ul>
-            <p className="inline-flex items-center gap-1 text-[11px] text-muted2">KI-Funktionen laufen über dein Monats-Kontingent{IST_NATIVE ? '' : ' bzw. das Sapio-Abo'} – Stand jederzeit unter <Icon name="settings" size={16} /> → Verbrauch & Tarif.</p>
+            <p className="inline-flex items-center gap-1 text-[11px] text-muted2">KI-Funktionen laufen über dein Monats-Kontingent{IST_NATIVE ? '' : ' bzw. das Topfplan-Abo'} – Stand jederzeit unter <Icon name="settings" size={16} /> → Verbrauch & Tarif.</p>
           </div>
         )}
 

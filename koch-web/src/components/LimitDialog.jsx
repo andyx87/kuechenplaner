@@ -90,13 +90,13 @@ export default function LimitDialog({ info, onClose, onUpgrade, notify }) {
         <div className="space-y-3">
           <p className="text-sm text-muted">
             {istBild
-              ? <>Dein <b>Bild-Kontingent</b> für diesen Monat ist aufgebraucht ({info.monats_bilder}/{info.bild_limit}).{preise && <> Mit <b>Sapio</b> bekommst du {kontingent(preise.abo.bild_limit, 'Bilder')}/Monat</>} – oder kauf ein Foto-Credit-Pack.</>
-              : <>Dein <b>Gratis-KI-Kontingent</b> ist diesen Monat erreicht ({info.monats_ki}/{info.ki_limit}).{preise && <> Mit <b>Sapio</b> nutzt du KI-Funktionen {kontingent(preise.abo.ki_limit)}.</>}</>}
+              ? <>Dein <b>Bild-Kontingent</b> für diesen Monat ist aufgebraucht ({info.monats_bilder}/{info.bild_limit}).{preise && <> Mit <b>Topfplan</b> bekommst du {kontingent(preise.abo.bild_limit, 'Bilder')}/Monat</>} – oder kauf ein Foto-Credit-Pack.</>
+              : <>Dein <b>Gratis-KI-Kontingent</b> ist diesen Monat erreicht ({info.monats_ki}/{info.ki_limit}).{preise && <> Mit <b>Topfplan</b> nutzt du KI-Funktionen {kontingent(preise.abo.ki_limit)}.</>}</>}
           </p>
           <div className="space-y-2">
             {opt2.abo_moeglich && !IST_NATIVE && preise && (
               <Button onClick={starteAbo} disabled={busy} className="w-full">
-                {busy ? <Spinner /> : `Sapio abonnieren – ${euro(preise.abo.preis_cents)}/Monat`}
+                {busy ? <Spinner /> : `Topfplan abonnieren – ${euro(preise.abo.preis_cents)}/Monat`}
               </Button>
             )}
             {istBild && opt2.credits_kaufen_moeglich && !IST_NATIVE && preise && (

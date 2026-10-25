@@ -425,7 +425,7 @@ async def guthaben_checkout(body: dict, request: Request, ctx=Depends(auth)):
 
 @router.post("/abo/checkout")
 async def abo_checkout(request: Request, ctx=Depends(auth)):
-    """Startet das wiederkehrende Sapio-Abo (Stripe Subscription-Checkout)."""
+    """Startet das wiederkehrende Topfplan-Abo (Stripe Subscription-Checkout)."""
     origin = request.headers.get("origin") or request.headers.get("referer") or ""
     res = await stripe_pay.checkout_abo(ctx["account_id"], origin)
     if res.get("error"):
@@ -489,7 +489,7 @@ async def konto_export(ctx=Depends(auth)):
     return Response(
         content=json.dumps(data, ensure_ascii=False, indent=2),
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=sapio-datenexport.json"},
+        headers={"Content-Disposition": "attachment; filename=topfplan-datenexport.json"},
     )
 
 

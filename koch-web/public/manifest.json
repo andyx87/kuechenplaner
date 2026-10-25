@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Sapio",
-  "short_name": "Sapio",
-  "description": "Sapio – dein KI-Küchenassistent: Rezepte, Planung, Vorrat & Angebote.",
+  "name": "Topfplan",
+  "short_name": "Topfplan",
+  "description": "Topfplan – dein KI-Küchenassistent: Rezepte, Planung, Vorrat & Angebote.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

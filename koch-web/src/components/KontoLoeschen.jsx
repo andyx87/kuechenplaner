@@ -28,7 +28,7 @@ function Anfordern({ onClose }) {
 
   async function anfordern() {
     setFehler('')
-    if (!email.trim()) { setFehler('Bitte die E-Mail-Adresse deines Sapio-Kontos angeben.'); return }
+    if (!email.trim()) { setFehler('Bitte die E-Mail-Adresse deines Topfplan-Kontos angeben.'); return }
     setBusy(true)
     try {
       const res = await api.kontoLoeschenAnfordern(email.trim())
@@ -49,7 +49,7 @@ function Anfordern({ onClose }) {
           <p className="mt-4 text-sm text-ink/80">{quittung.hinweis}</p>
         </div>
         <button onClick={onClose} className="mt-6 text-sm text-muted2 hover:text-ink hover:underline">
-          Zurück zu Sapio
+          Zurück zu Topfplan
         </button>
       </div>
     )
@@ -59,7 +59,7 @@ function Anfordern({ onClose }) {
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
       <h1 className="font-dish text-4xl leading-tight text-ink">Konto löschen</h1>
       <p className="mt-3 text-sm text-muted">
-        Hier löschst du dein Sapio-Konto dauerhaft – ohne Anmeldung. Aus Sicherheitsgründen
+        Hier löschst du dein Topfplan-Konto dauerhaft – ohne Anmeldung. Aus Sicherheitsgründen
         löschen wir nie allein auf Basis dieser Eingabe: Du bekommst zuerst einen
         Bestätigungslink per E-Mail, erst dein Klick darauf führt die Löschung aus.
       </p>
@@ -98,7 +98,7 @@ function Anfordern({ onClose }) {
 
       <div className="mt-8 space-y-4">
         <label className="block">
-          <span className="label-mono mb-2 block text-muted2">E-Mail deines Sapio-Kontos *</span>
+          <span className="label-mono mb-2 block text-muted2">E-Mail deines Topfplan-Kontos *</span>
           <input className={input} type="email" autoComplete="email" value={email}
             onChange={(e) => setEmail(e.target.value)} placeholder="du@beispiel.de"
             onKeyDown={(e) => { if (e.key === 'Enter') anfordern() }} />
@@ -146,7 +146,7 @@ function Bestaetigen({ token, onClose }) {
           <p className="mt-4 text-sm text-ink/80">{quittung.hinweis}</p>
         </div>
         <button onClick={onClose} className="mt-6 text-sm text-muted2 hover:text-ink hover:underline">
-          Zurück zu Sapio
+          Zurück zu Topfplan
         </button>
       </div>
     )
@@ -156,7 +156,7 @@ function Bestaetigen({ token, onClose }) {
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
       <h1 className="font-dish text-4xl leading-tight text-ink">Kontolöschung bestätigen</h1>
       <p className="mt-3 text-sm text-muted">
-        Du hast angefordert, dein Sapio-Konto dauerhaft zu löschen. Dieser Schritt ist
+        Du hast angefordert, dein Topfplan-Konto dauerhaft zu löschen. Dieser Schritt ist
         endgültig: Dein Login, deine Rezepte, Pläne, Vorräte und persönlichen Daten werden
         entfernt. Bist du der letzte Nutzer deines Haushalts, wird der komplette Haushalt
         gelöscht. Ein laufendes Abo endet sofort; die bereits bezahlte Restlaufzeit verfällt.

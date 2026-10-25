@@ -185,14 +185,14 @@ export default function Abrechnung({ onClose, notify }) {
             Stand unten (Google-Play-Payments-Richtlinie). Kündigen bleibt erlaubt. */}
         {ABO_AKTIV && !IST_NATIVE && preise && (
           <div className="rounded-2xl border border-terracotta/30 bg-terracotta/5 p-4">
-            <p className="label-mono text-muted2">Sapio-Abo</p>
+            <p className="label-mono text-muted2">Topfplan-Abo</p>
             <p className="mt-1 text-sm text-muted">
               Alle KI-Funktionen · Text {kontingent(preise.abo.ki_limit)} · {kontingent(preise.abo.bild_limit, 'Bilder')}/Monat. Über dem Limit: Foto-Credits.
             </p>
             <div className="mt-3 space-y-2">
               <button onClick={starteAbo} disabled={ladenBusy}
                 className="w-full rounded-xl border border-terracotta/40 bg-terracotta/10 py-2.5 text-sm font-semibold text-terracotta hover:bg-terracotta/20 disabled:opacity-50">
-                Sapio abonnieren – {euro(preise.abo.preis_cents)}/Monat
+                Topfplan abonnieren – {euro(preise.abo.preis_cents)}/Monat
               </button>
               <button onClick={kaufeCredits} disabled={ladenBusy}
                 className="w-full rounded-xl border border-olive/40 bg-olive/10 py-2.5 text-sm font-semibold text-olive hover:bg-olive/20 disabled:opacity-50">
@@ -207,7 +207,7 @@ export default function Abrechnung({ onClose, notify }) {
             <div className="flex items-center justify-between gap-2">
               <p className="label-mono text-muted2">Dein Zugang</p>
               <span className="rounded-full bg-olive/10 px-2 py-0.5 text-xs font-semibold text-olive">
-                {kont.modus === 'abo' ? (kont.trial ? 'Sapio · Testphase' : 'Sapio') : 'Gratis'}
+                {kont.modus === 'abo' ? (kont.trial ? 'Topfplan · Testphase' : 'Topfplan') : 'Gratis'}
               </span>
             </div>
             <div className="mt-3 space-y-2">

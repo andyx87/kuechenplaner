@@ -2,7 +2,7 @@
 --
 -- Zielmodell:
 --   Gratis   : Nicht-KI frei · 10 KI-Text-Aktionen + 3 Bilder pro Monat · 14-Tage-Trial
---   Sapio-Abo: 9,99 €/Mo · alle KI · Text unbegrenzt · 50 Bilder pro Monat
+--   Topfplan-Abo: 9,99 €/Mo · alle KI · Text unbegrenzt · 50 Bilder pro Monat
 --   Foto-Pack: 12,99 € einmalig · 75 Bild-Credits  (kein Tarif, nur bild_credits-Zukauf)
 --   Nur "schnell"-Bilder. Bild-Credits (account.bild_credits) decken Bilder über dem Limit.
 --
@@ -21,7 +21,7 @@ ALTER TABLE koch.tarif ADD COLUMN IF NOT EXISTS monats_bild_limit integer;  -- B
 INSERT INTO koch.tarif (code, name, ist_payg, preis_cents, markup_prozent,
                         monats_ki_limit, monats_bild_limit, sortierung, aktiv) VALUES
   ('gratis', 'Gratis', false,   0, 0,   10,    3, 0, true),
-  ('abo',    'Sapio',  false, 999, 0, NULL,   50, 1, true)
+  ('abo',    'Topfplan',  false, 999, 0, NULL,   50, 1, true)
 ON CONFLICT (code) DO UPDATE SET
   name              = EXCLUDED.name,
   ist_payg          = EXCLUDED.ist_payg,

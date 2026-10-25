@@ -21,7 +21,7 @@ export default class Fehlergrenze extends Component {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="font-display text-2xl">Da ist etwas schiefgelaufen</p>
-        <p className="max-w-xs text-sm text-muted">Deine Daten sind sicher gespeichert. Lade Sapio neu, dann geht es weiter.</p>
+        <p className="max-w-xs text-sm text-muted">Deine Daten sind sicher gespeichert. Lade Topfplan neu, dann geht es weiter.</p>
         <button onClick={() => window.location.reload()}
           className="rounded-xl bg-terracotta px-5 py-2.5 text-sm font-semibold text-on-accent">
           Neu laden

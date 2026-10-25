@@ -2,7 +2,7 @@
 const VORRAT_KEY = 'vorrat_aktiv'
 const ABHAK_KEY = 'einkauf_abhak_modus'
 
-// Abo-Modell v4 (Sapio-Abo + Foto-Credits, kein €-Guthaben mehr). Aktiv fürs neue Modell.
+// Abo-Modell v4 (Topfplan-Abo + Foto-Credits, kein €-Guthaben mehr). Aktiv fürs neue Modell.
 // Das serverseitige Verhalten schaltet zusätzlich das Backend-Flag ABO_MODELL_V4.
 export const ABO_AKTIV = true
 

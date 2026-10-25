@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS koch.kuendigung (
   eingegangen   timestamptz NOT NULL DEFAULT now(),   -- Zugang: Datum + Uhrzeit (Nachweis)
   email         text        NOT NULL,                 -- Angabe des Verbrauchers (kleingeschrieben)
   name          text,
-  vertrag       text,                                 -- Bezeichnung, z.B. "Sapio-Abo"
+  vertrag       text,                                 -- Bezeichnung, z.B. "Topfplan-Abo"
   art           text        NOT NULL DEFAULT 'ordentlich',  -- 'ordentlich' | 'ausserordentlich'
   grund         text,
   zum_datum     date,                                 -- gewünschter Beendigungszeitpunkt (optional)

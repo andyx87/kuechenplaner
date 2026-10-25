@@ -73,7 +73,7 @@ const DOKUMENTE = {
         <Abschnitt titel="1. Verantwortlicher">
           <p>
             Verantwortlich für die Verarbeitung personenbezogener Daten im Rahmen der
-            App „Sapio" (nachfolgend „App") ist:
+            App „Topfplan" (nachfolgend „App") ist:
           </p>
           <p>
             {BETREIBER.name}<br />
@@ -295,7 +295,7 @@ const DOKUMENTE = {
         <Abschnitt titel="1. Geltungsbereich & Anbieter">
           <p>
             Diese Nutzungsbedingungen gelten für die Nutzung der App und Web-Anwendung
-            „Sapio" (nachfolgend „App") in der jeweils bei Vertragsschluss gültigen
+            „Topfplan" (nachfolgend „App") in der jeweils bei Vertragsschluss gültigen
             Fassung. Anbieter und Vertragspartner ist {BETREIBER.name}, {BETREIBER.ort}
             (vollständige Anschrift siehe Impressum), E-Mail: {BETREIBER.email}
             (nachfolgend „wir").
@@ -308,7 +308,7 @@ const DOKUMENTE = {
 
         <Abschnitt titel="2. Vertragsgegenstand & Leistungsbeschreibung">
           <p>
-            Sapio ist ein KI-gestützter Küchenassistent. Funktionen umfassen u. a.
+            Topfplan ist ein KI-gestützter Küchenassistent. Funktionen umfassen u. a.
             Rezeptverwaltung und -erstellung, Wochen- und Essensplanung, Vorrats- und
             Einkaufslistenverwaltung, das Finden von Angeboten sowie einen
             Schritt-für-Schritt-Kochmodus. Ein Teil der Funktionen nutzt
@@ -342,7 +342,7 @@ const DOKUMENTE = {
             kostenpflichtig wird.
           </p>
           <p>
-            Für die unbeschränkte Nutzung bieten wir das <b>Sapio-Abo</b> (aktuell
+            Für die unbeschränkte Nutzung bieten wir das <b>Topfplan-Abo</b> (aktuell
             9,99 € pro Monat) an: alle KI-Funktionen inklusive, KI-Textnutzung ohne festes
             Limit sowie ein monatliches KI-Bild-Kontingent (aktuell 50 Bilder/Monat). Das
             Abo ist ein wiederkehrendes Abonnement mit monatlicher Laufzeit, das sich bis
@@ -367,7 +367,7 @@ const DOKUMENTE = {
           </p>
           <p>
             <b>Widerrufsbelehrung.</b> Du hast das Recht, binnen vierzehn Tagen ohne
-            Angabe von Gründen diesen Vertrag (Abschluss des Sapio-Abos bzw. Kauf des
+            Angabe von Gründen diesen Vertrag (Abschluss des Topfplan-Abos bzw. Kauf des
             Foto-Pakets) zu widerrufen. Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag
             des Vertragsschlusses. Um dein Widerrufsrecht auszuüben, musst du uns ({BETREIBER.name},
             E-Mail: {BETREIBER.email}) mittels einer eindeutigen Erklärung
@@ -393,7 +393,7 @@ const DOKUMENTE = {
             <b>Muster-Widerrufsformular.</b> (Wenn du den Vertrag widerrufen willst, fülle
             dieses Formular aus und sende es zurück.) An: {BETREIBER.name},
             {BETREIBER.email} — Hiermit widerrufe(n) ich/wir den von mir/uns
-            abgeschlossenen Vertrag über das Sapio-Abo / das Foto-Paket der App „Sapio" —
+            abgeschlossenen Vertrag über das Topfplan-Abo / das Foto-Paket der App „Topfplan" —
             Bestellt am: … — Name: … — Anschrift: … — Datum: … — (Unterschrift bei
             Mitteilung auf Papier).
           </p>
@@ -442,7 +442,7 @@ const DOKUMENTE = {
 
         <Abschnitt titel="10. Laufzeit & Kündigung">
           <p>
-            Das Nutzungsverhältnis läuft auf unbestimmte Zeit. Das <b>Sapio-Abo</b> hat
+            Das Nutzungsverhältnis läuft auf unbestimmte Zeit. Das <b>Topfplan-Abo</b> hat
             eine monatliche Laufzeit und verlängert sich automatisch um je einen weiteren
             Monat, sofern es nicht gekündigt wird. Du kannst das Abo jederzeit zum Ende der
             laufenden Abrechnungsperiode kündigen (in den Konto-Einstellungen bzw. per
@@ -579,7 +579,7 @@ export function RechtSeite({ doc, onClose }) {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <div className="sapio-wortmarke text-3xl leading-none">Sapio</div>
+            <div className="topfplan-wortmarke text-3xl leading-none">Topfplan</div>
             <div className="label-mono mt-1.5 text-terracotta">Genuss mit Verstand</div>
           </div>
           {onClose && (

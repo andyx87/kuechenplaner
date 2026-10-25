@@ -268,7 +268,7 @@ export default function Start({ notify, openRezept, vorratAktiv = true }) {
       ) : (
       <section className="space-y-2">
         <h3 className="flex items-center gap-2 font-display text-xl"><Icon name="chef-hat" size={18} /> Aus deinen Zutaten</h3>
-        <p className="text-sm text-muted">Gib ein, was du gerade da hast – Sapio macht dir daraus einen Rezept-Vorschlag.</p>
+        <p className="text-sm text-muted">Gib ein, was du gerade da hast – Topfplan macht dir daraus einen Rezept-Vorschlag.</p>
         <textarea rows={2} value={vorratFreitext} onChange={(e) => setVorratFreitext(e.target.value)}
           placeholder="z.B. Kartoffeln, Zwiebeln, Hähnchenbrust, etwas Käse, Reis …"
           className={input + ' resize-none'} />

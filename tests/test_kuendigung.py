@@ -63,7 +63,7 @@ class FakeCon:
         self.token_hash = None        # nur dieser Hash liefert die token_zeile
         self.db_fehler = None         # Exception für alle Queries (Ausfall-Simulation)
         self.nachweis_id = 11
-        self.nachweis_daten = {"name": None, "vertrag": "Sapio-Abo", "art": "ordentlich",
+        self.nachweis_daten = {"name": None, "vertrag": "Topfplan-Abo", "art": "ordentlich",
                                "grund": None, "eingegangen": self.EINGEGANGEN}
         self.kuendigung_zeilen = {}   # id -> row dict (K-1 Nachweis-Zeilen)
         self.inserts_kuendigung = []  # Argument-Tupel der Nachweis-INSERTs
@@ -383,7 +383,7 @@ class Stufe1AnnahmeTests(_Basis):
         rest = ablauf - datetime.now(timezone.utc)
         self.assertLess(rest, timedelta(hours=1, seconds=5))   # 1 Stunde gültig
         self.assertGreater(rest, timedelta(minutes=30))
-        self.assertEqual(daten["vertrag"], "Sapio-Abo")
+        self.assertEqual(daten["vertrag"], "Topfplan-Abo")
 
     async def test_hintergrund_ergaenzt_nachweis(self):
         self.konto_bekannt(account_id=7)
@@ -560,13 +560,13 @@ class BefundeK1BisK7Tests(_Basis):
         bg = FakeBackground()
         # 1) Opfer legt Kündigungserklärung an
         res1 = await kuendigung.annehmen(
-            {"email": "kunde@example.org", "name": "Opfer", "vertrag": "Sapio Pro"},
+            {"email": "kunde@example.org", "name": "Opfer", "vertrag": "Topfplan Pro"},
             background=bg)
         self.assertTrue(res1["ok"])
 
         # 2) Angreifer legt Kündigungserklärung auf dieselbe Adresse an
         res2 = await kuendigung.annehmen(
-            {"email": "kunde@example.org", "name": "Angreifer", "vertrag": "Sapio Free"},
+            {"email": "kunde@example.org", "name": "Angreifer", "vertrag": "Topfplan Free"},
             background=bg)
         self.assertTrue(res2["ok"])
 
@@ -668,7 +668,7 @@ class BefundeK1BisK7Tests(_Basis):
         html1 = kuendigung.zugang_html(daten)
         self.assertNotIn("Erika Mustermann", html1)
         self.assertNotIn("Anderer Vertrag 123", html1)
-        self.assertIn("Sapio-Abo", html1)
+        self.assertIn("Topfplan-Abo", html1)
         self.assertNotIn("Grund-Ende", html1)  # auf 200 Zeichen gekürzt
         self.assertIn("Grund-Anfang", html1)
         self.assertIn("…", html1)

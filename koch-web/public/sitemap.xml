@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Platzhalter-Domain https://example.com durch die eigene Domain ersetzen.
-     Hinweis: Sapio ist eine SPA hinter Login; öffentlich indexierbar ist v. a. die Startseite.
+     Hinweis: Topfplan ist eine SPA hinter Login; öffentlich indexierbar ist v. a. die Startseite.
      Weitere öffentliche Landingpages hier ergänzen, sobald vorhanden. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
