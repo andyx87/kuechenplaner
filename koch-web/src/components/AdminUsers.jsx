@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api.js'
 import { Spinner, input } from '../ui.jsx'
 
-const euro = (c) => ((c || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const PRO_SEITE = 25
 
 const SORT = [
   ['id_desc', 'Neueste ID'],
   ['neu', 'Neu angemeldet'],
-  ['guthaben', 'Guthaben'],
   ['email', 'E-Mail'],
   ['name', 'Name'],
 ]
@@ -66,19 +64,6 @@ export default function AdminUsers({ notify, superAdmin = false }) {
       else { patch(u.id, { aktiv: !sperren }); notify(sperren ? 'Nutzer gesperrt' : 'Nutzer entsperrt') }
     } catch { notify('Sperren fehlgeschlagen', 'err') } finally { setBusy(null) }
   }
-  async function aufladen(u) {
-    const eingabe = window.prompt(`Guthaben aufladen für ${u.email}\nBetrag in € (negativ = abziehen):`, '10')
-    if (eingabe == null) return
-    const euroBetrag = Number(String(eingabe).replace(',', '.'))
-    if (Number.isNaN(euroBetrag) || euroBetrag === 0) { notify('Ungültiger Betrag', 'err'); return }
-    setBusy(u.id)
-    try {
-      const res = await api.adminUserGuthaben(u.id, Math.round(euroBetrag * 100))
-      patch(u.id, { guthaben_cents: res.guthaben_cents })
-      notify(`${euroBetrag > 0 ? '+' : ''}${euroBetrag.toString().replace('.', ',')} € · neu: ${euro(res.guthaben_cents)}`)
-    } catch { notify('Aufladen fehlgeschlagen', 'err') } finally { setBusy(null) }
-  }
-
   const seite = Math.floor(offset / PRO_SEITE) + 1
   const seiten = Math.max(1, Math.ceil(total / PRO_SEITE))
 
@@ -97,7 +82,6 @@ export default function AdminUsers({ notify, superAdmin = false }) {
           <ul className="space-y-2">
             {users.map((u) => {
               const su = u.plattform_rolle === 'super_admin'
-              const aboAktiv = u.tarif_code && u.tarif_code !== 'payg' && u.abo_bezahlt_bis
               return (
                 <li key={u.id} className="rounded-lg border border-line/60 bg-card/60 p-2.5 text-sm">
                   <div className="flex items-center justify-between gap-2">
@@ -105,15 +89,8 @@ export default function AdminUsers({ notify, superAdmin = false }) {
                       <span className="block truncate font-medium">{u.name || u.email} <span className="font-mono text-xs font-normal text-muted2">#{u.id}</span>{u.aktiv === false && <span className="ml-1.5 rounded bg-terracotta/15 px-1.5 py-0.5 text-[10px] font-semibold text-terracotta-deep align-middle">gesperrt</span>}</span>
                       <span className="block truncate text-xs text-muted">
                         {u.email}{u.account_name ? ` · ${u.account_name}` : ''}
-                        {aboAktiv ? ` · ${u.tarif_code}` : ' · payg'}
                         {u.plattform_rolle ? ` · ${u.plattform_rolle}` : ''}
                       </span>
-                    </span>
-                    <span className="shrink-0 text-right">
-                      <span className="block font-mono font-semibold text-olive">{euro(u.guthaben_cents)}</span>
-                      <button onClick={() => aufladen(u)} disabled={busy === u.id} className="text-xs text-terracotta hover:underline">
-                        {busy === u.id ? '…' : 'aufladen'}
-                      </button>
                     </span>
                   </div>
                   {superAdmin && !su && (

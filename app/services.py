@@ -5,7 +5,6 @@ als auch der MCP-Server (KI) rufen ausschliesslich diese Funktionen auf.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from datetime import date, datetime, timedelta
@@ -1833,8 +1832,7 @@ async def set_veroeffentlicht(rezept_id: int, veroeffentlicht: bool,
 
 async def importiere_rezept(rezept_id: int) -> dict:
     """Kopiert ein (öffentliches) Rezept als EIGENE Kopie ins aktuelle Konto – inklusive
-    des vorhandenen Bildes. Das Bild ist bereits erzeugt und bezahlt; ein erneutes
-    Generieren würde nur Kosten und Bild-Kontingent verbrauchen (Abo-Modell v4)."""
+    des vorhandenen Bildes (ein erneutes Generieren würde nur unnötige KI-Aufrufe kosten)."""
     r = await get_rezept(rezept_id)
     if r is None:
         return {"error": "Rezept nicht gefunden"}
@@ -1865,7 +1863,7 @@ async def importiere_rezept(rezept_id: int) -> dict:
         portionen=r.get("portionen") or 2, dauer_minuten=r.get("dauer_minuten"),
         quelle="Öffentliches Rezept", zutaten=zutaten, geraete=[],
         zubereitung=r.get("zubereitung"))
-    # Vorhandenes Bild der Vorlage mitkopieren (kein KI-Aufruf, kein Bild-Kontingent).
+    # Vorhandenes Bild der Vorlage mitkopieren (kein KI-Aufruf).
     # Kopie als 'importiert' markieren: importierte Rezepte können NICHT (erneut)
     # veröffentlicht werden (kein Pool-Duplikat).
     if isinstance(neu, dict) and neu.get("id"):
@@ -2910,7 +2908,7 @@ _ACCOUNT_TABELLEN = [
     "geraete_heute", "geraete_heute_stand", "rezept_geraete", "rezept_zutaten",
     "bewertung", "essensplan", "einkauf_extra", "einkaufstag_haendler", "einkaufstag",
     "vorrat", "rezepte", "person", "geraete", "zutaten", "lagerort",
-    "ai_nutzung", "abo_buchung", "bugreport",
+    "bugreport",
 ]
 
 
@@ -2926,9 +2924,8 @@ async def _delete_account_data(con, acc: int) -> None:
 
 # ---------- DSGVO: Datenexport (Art. 15 Auskunft / Art. 20 Portabilität) ----------
 
-# Export-Umfang = Löschumfang (_ACCOUNT_TABELLEN) + Guthaben-Ledger (bleibt bei Löschung
-# aus steuerlichen Gründen erhalten, gehört dem Nutzer aber als Auskunft) + eigene Angebote.
-_EXPORT_TABELLEN = _ACCOUNT_TABELLEN + ["guthaben_buchung", "angebote"]
+# Export-Umfang = Löschumfang (_ACCOUNT_TABELLEN) + eigene Angebote.
+_EXPORT_TABELLEN = _ACCOUNT_TABELLEN + ["angebote"]
 
 
 async def export_konto_daten() -> dict:
@@ -2959,82 +2956,16 @@ async def export_konto_daten() -> dict:
         return out
 
 
-async def _stripe_abo_vor_loeschung_beenden(acc: int, uid: int, modus: str) -> None:
-    """Beendet das Stripe-Abo des Kontos VOR der Kontolöschung (S1, Sicherheitsprüfung
-    AND-24). Läuft bewusst vor der Lösch-Transaktion: schlägt danach die Löschung fehl,
-    ist das im schlechtesten Fall ein gekündigtes Abo bei einem noch existierenden Konto
-    (sichtbar, erholbar) – nie umgekehrt eine verwaiste, still weiterlaufende Abbuchung.
-
-      - Fall A (Haushalt wird komplett gelöscht): `Subscription.delete` beendet das Abo
-        SOFORT. Nach dem Löschen der `account`-Zeile kann niemand mehr das Periodenende
-        auswerten; eine weiterlaufende Subscription würde über `invoice.paid` still
-        abgebucht, ohne Konto und ohne Spur (stripe_pay._verlaengere_abo: „kein Konto
-        zur Subscription").
-      - Fall B (Eigentümer/Zahler geht, Haushalt bleibt): `stripe_pay.kuendige_abo`
-        kündigt zum Periodenende (`cancel_at_period_end`). Die bezahlte Periode bleibt
-        dem Haushalt erhalten; es folgt aber keine `invoice.paid` mehr, die
-        `abo_gekuendigt` zurücksetzen und die Karte des Ausgeschiedenen dauerhaft
-        weiterbelasten könnte. Ausscheidende Nicht-Eigentümer lassen das Abo unberührt.
-
-    Stripe-Fehler werden NUR protokolliert (log.error mit Sub-ID als Spur für die
-    manuelle Nacharbeit im Stripe-Dashboard) – die Löschung darf nie am Anbieter
-    scheitern (dieselbe Regel wie in stripe_pay.kuendige_abo)."""
-    try:
-        from . import stripe_pay
-        if not stripe_pay.verfuegbar():
-            return
-        async with acquire(bypass=True) as con:
-            vor = await con.fetchrow(
-                "SELECT stripe_subscription_id AS sub, "
-                "EXISTS (SELECT 1 FROM account_mitglied m WHERE m.account_id = $1 "
-                "        AND m.user_id = $2 AND m.rolle = 'owner') AS ist_owner, "
-                "(SELECT count(*) FROM account_mitglied x WHERE x.account_id = $1 "
-                " AND x.user_id <> $2) AS andere "
-                "FROM account WHERE id = $1", acc, uid)
-        if not vor or not vor["sub"]:
-            return
-        sub = vor["sub"]
-        ist_owner = bool(vor["ist_owner"])
-        if modus == "haushalt" and not ist_owner:
-            return  # wird unten in der Transaktion ohnehin abgelehnt
-        # Vorab-Check nur für die Stripe-Weichenstellung; die Löschung selbst prüft
-        # Mitgliedschaften autoritativ erneut in ihrer Transaktion.
-        voll = (modus == "haushalt") or int(vor["andere"] or 0) == 0
-        if voll:
-            stripe = stripe_pay._stripe()
-            try:
-                await asyncio.to_thread(stripe.Subscription.delete, sub)
-                log.info("Konto-Löschung: Stripe-Abo %s sofort beendet (Konto %s)", sub, acc)
-            except Exception as e:  # noqa: BLE001 – Löschung darf nicht scheitern
-                log.error(
-                    "Konto-Löschung: Stripe-Abo %s (Konto %s) konnte NICHT beendet werden – "
-                    "Konto wird trotzdem gelöscht; Abo MANUELL im Stripe-Dashboard "
-                    "kündigen: %s", sub, acc, e)
-        elif ist_owner:
-            res = await stripe_pay.kuendige_abo(acc)
-            if not res.get("stripe"):
-                log.error(
-                    "Konto-Löschung: Stripe-Abo %s (Konto %s) konnte NICHT zum Periodenende "
-                    "gekündigt werden – Zahlungsmittel des ausscheidenden Eigentümers "
-                    "MANUELL im Stripe-Dashboard vom Abo trennen", sub, acc)
-    except Exception as e:  # noqa: BLE001 – Löschung darf nie an Stripe scheitern
-        log.error("Konto-Löschung: Stripe-Abbruch fehlgeschlagen (Konto %s): %s", acc, e)
-
-
 async def loesche_eigenes_konto(modus: str = "selbst") -> dict:
     """Self-Service-Löschung des aktiven Kontos durch den eingeloggten User.
       - 'haushalt' (nur Eigentümer): ganzer Haushalt inkl. aller Daten + verwaiste Logins.
-      - 'selbst': nur eigene Mitgliedschaft + eigener Login. War man Eigentümer/Zahler,
-        endet das Abo zum Periodenende (gekündigt) und das älteste verbleibende Mitglied
-        wird Eigentümer. Ist man der LETZTE Nutzer, wird der ganze Haushalt entfernt.
-    Das Stripe-Abo wird in BEIDEN Wegen vorab beendet (S1, AND-24):
-    s. _stripe_abo_vor_loeschung_beenden."""
+      - 'selbst': nur eigene Mitgliedschaft + eigener Login. War man Eigentümer,
+        wird das älteste verbleibende Mitglied Eigentümer. Ist man der LETZTE Nutzer, wird der ganze Haushalt entfernt."""
     from .userauth import current_account, current_user
     uid = current_user.get()
     acc = current_account.get()
     if not uid or not acc:
         return {"error": "nicht angemeldet"}
-    await _stripe_abo_vor_loeschung_beenden(acc, uid, modus)
     async with acquire(bypass=True) as con:
         async with con.transaction():
             mine = await con.fetchrow(
@@ -3060,14 +2991,6 @@ async def loesche_eigenes_konto(modus: str = "selbst") -> dict:
             await con.execute(
                 "DELETE FROM account_mitglied WHERE account_id=$1 AND user_id=$2", acc, uid)
             if ist_owner:
-                # D1 (Sicherheitsprüfung AND-38 / AND-75): stripe_customer_id des ausscheidenden
-                # Zahlers nullen, damit Folge-Checkouts des neuen Eigentümers nicht über dessen
-                # Kundendaten/Kreditkarte laufen. stripe_subscription_id MUSS stehen bleiben,
-                # weil customer.subscription.deleted das Konto darüber auflöst.
-                await con.execute(
-                    "UPDATE account SET abo_gekuendigt = true, abo_naechster_tarif = 'payg', "
-                    "stripe_customer_id = NULL "
-                    "WHERE id = $1 AND tarif_code <> 'payg'", acc)
                 await con.execute(
                     "UPDATE account_mitglied SET rolle='owner' WHERE account_id=$1 AND user_id=$2",
                     acc, andere[0])
@@ -3203,7 +3126,7 @@ async def start_uebersicht() -> dict:
     })
 
 
-# ---------- Beta-Bugreports ----------
+# ---------- Bugreports ----------
 
 async def create_bugreport(text: str, seite: str | None = None, user_agent: str | None = None) -> dict:
     """Speichert eine In-App-Fehlermeldung des aktuellen Nutzers/Kontos."""
@@ -3237,55 +3160,14 @@ async def list_bugreports(nur_offen: bool = False) -> list[dict]:
     return _jsonable(_l(rows))
 
 
-# Guthaben-Dankeschön je behobenem Bugreport (einmalig pro Report).
-BUGREPORT_BELOHNUNG_CENTS = 200
-
-
 async def set_bugreport_status(bugreport_id: int, status: str) -> dict:
-    """Setzt den Status eines Bugreports (offen/erledigt) – Admin/Support, bypass.
-    Beim Erledigen wird dem MELDENDEN Konto einmalig ein Dankeschön-Guthaben
-    (BUGREPORT_BELOHNUNG_CENTS) gutgeschrieben; der Melder sieht das beim nächsten
-    Login als Danke-Popup. Idempotent über den Ledger-Zweck 'Bugreport #<id> behoben'
-    (kein Doppel-Bonus, auch wenn ein Report mehrfach auf 'erledigt' gesetzt wird) –
-    ganz ohne Schema-Änderung, nur mit den vorhandenen App-Rechten. Kein rückwirkender
-    Bonus: ausgelöst wird nur durch die (menschliche) Erledigt-Aktion, nicht automatisch."""
+    """Setzt den Status eines Bugreports (offen/erledigt) – Admin/Support, bypass."""
     st = status if status in ("offen", "erledigt") else "offen"
     async with acquire(bypass=True) as con:
-        async with con.transaction():
-            row = await con.fetchrow(
-                "UPDATE bugreport SET status = $2 WHERE id = $1 RETURNING *",
-                int(bugreport_id), st)
-            if row and st == "erledigt" and row["account_id"]:
-                acc = int(row["account_id"])
-                zweck = f"Bugreport #{int(bugreport_id)} behoben"
-                # Konto sperren → Check+Buchung atomar (kein Doppel-Bonus, kein Unique-Index nötig)
-                await con.execute("SELECT 1 FROM account WHERE id = $1 FOR UPDATE", acc)
-                schon = await con.fetchval(
-                    "SELECT 1 FROM guthaben_buchung WHERE account_id = $1 AND zweck = $2", acc, zweck)
-                if not schon:
-                    from . import billing
-                    await billing.buche(con, acc, BUGREPORT_BELOHNUNG_CENTS,
-                                        "bugreport_belohnung", zweck)
+        row = await con.fetchrow(
+            "UPDATE bugreport SET status = $2 WHERE id = $1 RETURNING *",
+            int(bugreport_id), st)
     return _d(row) if row else {"error": "Bugreport nicht gefunden"}
-
-
-async def bugreport_belohnungen() -> dict:
-    """Dankeschön-Gutschriften des aktuellen Kontos fürs Login-Popup (read-only). Das
-    Frontend merkt sich via localStorage, welche Buchungen es schon gezeigt hat, und
-    zeigt nur neue an. Keine Schema-Änderung nötig – liest die Ledger-Buchungen."""
-    from .userauth import current_account
-    acc = current_account.get()
-    if not acc:
-        return {"belohnungen": [], "guthaben_cents": 0.0}
-    async with acquire() as con:  # Kontext (RLS): nur eigene Buchungen des Kontos
-        rows = await con.fetch(
-            "SELECT id, betrag_cents, zweck FROM guthaben_buchung "
-            "WHERE account_id = $1 AND typ = 'bugreport_belohnung' "
-            "ORDER BY erstellt DESC LIMIT 20", acc)
-        saldo = await con.fetchval("SELECT guthaben_cents FROM account WHERE id = $1", acc)
-    return {"belohnungen": [{"id": int(r["id"]), "betrag_cents": int(r["betrag_cents"]),
-                             "zweck": r["zweck"]} for r in rows],
-            "guthaben_cents": float(saldo or 0)}
 
 
 # ---------- Zutaten-Kuratierung (Super-Admin): Account-Master -> Global ----------

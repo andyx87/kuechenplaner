@@ -24,7 +24,7 @@ export default function WochenWizard({ tage, personen, onClose, onDone, notify }
   const [genN, setGenN] = useState(0)
   const [saving, setSaving] = useState(false)
   // Bilder beim Übernehmen erzeugen? Konto-Einstellung ist nur die Vorbelegung – hier
-  // abwählbar, denn bei einer ganzen Woche wären das gleich mehrere Bilder aus dem Kontingent.
+  // abwählbar, denn bei einer ganzen Woche wären das gleich mehrere Bild-Generierungen.
   const [bildWunsch, setBildWunsch] = useState(false)
   useEffect(() => { api.autoBild().then((r) => setBildWunsch(!!r.aktiv)).catch(() => {}) }, [])
 
@@ -257,7 +257,7 @@ export default function WochenWizard({ tage, personen, onClose, onDone, notify }
               <input type="checkbox" checked={bildWunsch} onChange={(e) => setBildWunsch(e.target.checked)} className="mt-0.5 h-4 w-4 accent-terracotta" />
               <span>
                 <span className="inline-flex items-center gap-1"><Icon name="image" size={16} /> Bilder zu den Rezepten erzeugen</span>
-                <span className="block text-[11px] text-muted2">Je Rezept ein Bild aus deinem monatlichen Kontingent. Später jederzeit nachholbar.</span>
+                <span className="block text-[11px] text-muted2">Je Rezept ein KI-Bild. Später jederzeit nachholbar.</span>
               </span>
             </label>
             <div className="flex justify-between gap-2">

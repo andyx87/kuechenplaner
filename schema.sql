@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict 64jw2tE8J8Ty0mZJ14aidxdYOcR2HfpMFZvrR0BeZtjDgSuLEmvCiI3B1pwuusD
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13
@@ -24,46 +23,13 @@ SET row_security = off;
 
 CREATE SCHEMA koch;
 
+-- E-Mail-Spalten sind case-insensitiv (citext).
+CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA koch;
+
 
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
-
---
--- Name: abo_buchung; Type: TABLE; Schema: koch; Owner: -
---
-
-CREATE TABLE koch.abo_buchung (
-    id bigint NOT NULL,
-    account_id integer DEFAULT (NULLIF(current_setting('app.account_id'::text, true), ''::text))::integer NOT NULL,
-    zeitraum date NOT NULL,
-    personen integer DEFAULT 1 NOT NULL,
-    betrag_cents integer NOT NULL,
-    gebucht timestamp with time zone DEFAULT now() NOT NULL,
-    idempotenz text
-);
-
-ALTER TABLE ONLY koch.abo_buchung FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: abo_buchung_id_seq; Type: SEQUENCE; Schema: koch; Owner: -
---
-
-CREATE SEQUENCE koch.abo_buchung_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: abo_buchung_id_seq; Type: SEQUENCE OWNED BY; Schema: koch; Owner: -
---
-
-ALTER SEQUENCE koch.abo_buchung_id_seq OWNED BY koch.abo_buchung.id;
-
 
 --
 -- Name: account; Type: TABLE; Schema: koch; Owner: -
@@ -72,10 +38,9 @@ ALTER SEQUENCE koch.abo_buchung_id_seq OWNED BY koch.abo_buchung.id;
 CREATE TABLE koch.account (
     id integer NOT NULL,
     name text NOT NULL,
-    abo_status text DEFAULT 'aktiv'::text NOT NULL,
-    guthaben_cents numeric(14,4) DEFAULT 0 NOT NULL,
     einstellungen jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    zuletzt_aktiv timestamp with time zone
 );
 
 
@@ -110,45 +75,6 @@ CREATE TABLE koch.account_mitglied (
     beigetreten_am timestamp with time zone DEFAULT now() NOT NULL,
     ki_erlaubt boolean DEFAULT true NOT NULL
 );
-
-
---
--- Name: ai_nutzung; Type: TABLE; Schema: koch; Owner: -
---
-
-CREATE TABLE koch.ai_nutzung (
-    id bigint NOT NULL,
-    account_id integer DEFAULT (NULLIF(current_setting('app.account_id'::text, true), ''::text))::integer NOT NULL,
-    user_id integer,
-    zweck text NOT NULL,
-    modell text,
-    prompt_tokens integer DEFAULT 0 NOT NULL,
-    completion_tokens integer DEFAULT 0 NOT NULL,
-    total_tokens integer DEFAULT 0 NOT NULL,
-    kosten_cents numeric(14,4) DEFAULT 0 NOT NULL,
-    erstellt timestamp with time zone DEFAULT now() NOT NULL
-);
-
-ALTER TABLE ONLY koch.ai_nutzung FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: ai_nutzung_id_seq; Type: SEQUENCE; Schema: koch; Owner: -
---
-
-CREATE SEQUENCE koch.ai_nutzung_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: ai_nutzung_id_seq; Type: SEQUENCE OWNED BY; Schema: koch; Owner: -
---
-
-ALTER SEQUENCE koch.ai_nutzung_id_seq OWNED BY koch.ai_nutzung.id;
 
 
 --
@@ -782,21 +708,6 @@ ALTER SEQUENCE koch.personen_heute_id_seq OWNED BY koch.personen_heute.id;
 
 
 --
--- Name: plattform_einstellung; Type: TABLE; Schema: koch; Owner: -
---
-
-CREATE TABLE koch.plattform_einstellung (
-    id integer DEFAULT 1 NOT NULL,
-    api_markup_prozent numeric(6,2) DEFAULT 25 NOT NULL,
-    abo_einzel_cents integer DEFAULT 299 NOT NULL,
-    abo_mehrere_cents integer DEFAULT 449 NOT NULL,
-    bild_schnell_cents integer DEFAULT 5 NOT NULL,
-    bild_standard_cents integer DEFAULT 9 NOT NULL,
-    CONSTRAINT plattform_einstellung_id_check CHECK ((id = 1))
-);
-
-
---
 -- Name: rezept_geraete; Type: TABLE; Schema: koch; Owner: -
 --
 
@@ -1005,24 +916,10 @@ ALTER SEQUENCE koch.zutaten_id_seq OWNED BY koch.zutaten.id;
 
 
 --
--- Name: abo_buchung id; Type: DEFAULT; Schema: koch; Owner: -
---
-
-ALTER TABLE ONLY koch.abo_buchung ALTER COLUMN id SET DEFAULT nextval('koch.abo_buchung_id_seq'::regclass);
-
-
---
 -- Name: account id; Type: DEFAULT; Schema: koch; Owner: -
 --
 
 ALTER TABLE ONLY koch.account ALTER COLUMN id SET DEFAULT nextval('koch.account_id_seq'::regclass);
-
-
---
--- Name: ai_nutzung id; Type: DEFAULT; Schema: koch; Owner: -
---
-
-ALTER TABLE ONLY koch.ai_nutzung ALTER COLUMN id SET DEFAULT nextval('koch.ai_nutzung_id_seq'::regclass);
 
 
 --
@@ -1166,24 +1063,6 @@ ALTER TABLE ONLY koch.zutaten ALTER COLUMN id SET DEFAULT nextval('koch.zutaten_
 
 
 --
--- Name: abo_buchung_idem_uidx; Type: INDEX; Schema: koch; Owner: -
--- F4: Idempotenz nur für den automatischen Monats-Sweep (idempotenz IS NOT NULL);
--- nutzer-initiierte Buchungen (NULL) werden immer angehängt. Ersetzt die frühere
--- UNIQUE(account_id, zeitraum), die gleichtägige Buchungen fälschlich deduplizierte.
---
-
-CREATE UNIQUE INDEX abo_buchung_idem_uidx ON koch.abo_buchung USING btree (idempotenz) WHERE (idempotenz IS NOT NULL);
-
-
---
--- Name: abo_buchung abo_buchung_pkey; Type: CONSTRAINT; Schema: koch; Owner: -
---
-
-ALTER TABLE ONLY koch.abo_buchung
-    ADD CONSTRAINT abo_buchung_pkey PRIMARY KEY (id);
-
-
---
 -- Name: account_mitglied account_mitglied_pkey; Type: CONSTRAINT; Schema: koch; Owner: -
 --
 
@@ -1197,14 +1076,6 @@ ALTER TABLE ONLY koch.account_mitglied
 
 ALTER TABLE ONLY koch.account
     ADD CONSTRAINT account_pkey PRIMARY KEY (id);
-
-
---
--- Name: ai_nutzung ai_nutzung_pkey; Type: CONSTRAINT; Schema: koch; Owner: -
---
-
-ALTER TABLE ONLY koch.ai_nutzung
-    ADD CONSTRAINT ai_nutzung_pkey PRIMARY KEY (id);
 
 
 --
@@ -1408,14 +1279,6 @@ ALTER TABLE ONLY koch.personen_heute
 
 
 --
--- Name: plattform_einstellung plattform_einstellung_pkey; Type: CONSTRAINT; Schema: koch; Owner: -
---
-
-ALTER TABLE ONLY koch.plattform_einstellung
-    ADD CONSTRAINT plattform_einstellung_pkey PRIMARY KEY (id);
-
-
---
 -- Name: rezept_geraete rezept_geraete_pkey; Type: CONSTRAINT; Schema: koch; Owner: -
 --
 
@@ -1461,20 +1324,6 @@ ALTER TABLE ONLY koch.vorrat
 
 ALTER TABLE ONLY koch.zutaten
     ADD CONSTRAINT zutaten_pkey PRIMARY KEY (id);
-
-
---
--- Name: abo_buchung_acc_zeit; Type: INDEX; Schema: koch; Owner: -
---
-
-CREATE INDEX abo_buchung_acc_zeit ON koch.abo_buchung USING btree (account_id, zeitraum DESC);
-
-
---
--- Name: ai_nutzung_acc_zeit; Type: INDEX; Schema: koch; Owner: -
---
-
-CREATE INDEX ai_nutzung_acc_zeit ON koch.ai_nutzung USING btree (account_id, erstellt DESC);
 
 
 --
@@ -1881,26 +1730,6 @@ ALTER TABLE ONLY koch.zutaten
 
 
 --
--- Name: abo_buchung; Type: ROW SECURITY; Schema: koch; Owner: -
---
-
-ALTER TABLE koch.abo_buchung ENABLE ROW LEVEL SECURITY;
-
---
--- Name: abo_buchung acc_isolation; Type: POLICY; Schema: koch; Owner: -
---
-
-CREATE POLICY acc_isolation ON koch.abo_buchung USING (((current_setting('app.bypass'::text, true) = 'on'::text) OR (account_id = (NULLIF(current_setting('app.account_id'::text, true), ''::text))::integer))) WITH CHECK (((current_setting('app.bypass'::text, true) = 'on'::text) OR (account_id = (NULLIF(current_setting('app.account_id'::text, true), ''::text))::integer)));
-
-
---
--- Name: ai_nutzung acc_isolation; Type: POLICY; Schema: koch; Owner: -
---
-
-CREATE POLICY acc_isolation ON koch.ai_nutzung USING (((current_setting('app.bypass'::text, true) = 'on'::text) OR (account_id = (NULLIF(current_setting('app.account_id'::text, true), ''::text))::integer))) WITH CHECK (((current_setting('app.bypass'::text, true) = 'on'::text) OR (account_id = (NULLIF(current_setting('app.account_id'::text, true), ''::text))::integer)));
-
-
---
 -- Name: bewertung acc_isolation; Type: POLICY; Schema: koch; Owner: -
 --
 
@@ -2028,12 +1857,6 @@ CREATE POLICY zutaten_mod ON koch.zutaten USING (((current_setting('app.bypass':
 
 CREATE POLICY zutaten_select ON koch.zutaten FOR SELECT USING (((current_setting('app.bypass'::text, true) = 'on'::text) OR (account_id IS NULL) OR (account_id = (NULLIF(current_setting('app.account_id'::text, true), ''::text))::integer)));
 
-
---
--- Name: ai_nutzung; Type: ROW SECURITY; Schema: koch; Owner: -
---
-
-ALTER TABLE koch.ai_nutzung ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: angebote; Type: ROW SECURITY; Schema: koch; Owner: -
@@ -2221,102 +2044,45 @@ ALTER TABLE koch.vorrat ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE koch.zutaten ENABLE ROW LEVEL SECURITY;
 
+
 --
--- Tarif-Modell (nutzungsbasiertes Abo, Claude-Stil) — siehe migration_tarife.sql
+-- Ergänzungen aus späteren Migrationen (im Dump noch nicht enthalten).
+-- Idempotent; damit ist schema.sql für frische Installationen vollständig.
 --
 
-CREATE TABLE IF NOT EXISTS koch.tarif (
-  code                text PRIMARY KEY,
-  name                text NOT NULL,
-  ist_payg            boolean NOT NULL DEFAULT false,
-  preis_cents         integer NOT NULL DEFAULT 0,
-  markup_prozent      numeric(6,2) NOT NULL DEFAULT 0,   -- Token-/Bild-Aufschlag der Stufe
-  budget_cents        integer NOT NULL DEFAULT 0,        -- (alt, ungenutzt)
-  stunden_limit_cents integer,                           -- (alt, ungenutzt)
-  tages_limit_cents   integer,                           -- Tagesvolumen (marked-up Cent)
-  wochen_limit_cents  integer,                           -- Wochenvolumen (marked-up Cent)
-  sortierung          integer NOT NULL DEFAULT 0,
-  aktiv               boolean NOT NULL DEFAULT true
+ALTER TABLE koch.app_user ADD COLUMN IF NOT EXISTS email_verifiziert boolean NOT NULL DEFAULT false;
+ALTER TABLE koch.rezepte ADD COLUMN IF NOT EXISTS gang text;
+ALTER TABLE koch.rezepte ADD COLUMN IF NOT EXISTS kueche text;
+ALTER TABLE koch.rezepte ADD COLUMN IF NOT EXISTS importiert boolean NOT NULL DEFAULT false;
+ALTER TABLE koch.rezepte ADD COLUMN IF NOT EXISTS je_veroeffentlicht boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS koch.passwort_reset (
+    id serial PRIMARY KEY,
+    user_id integer NOT NULL,
+    token_hash text NOT NULL UNIQUE,
+    ablauf timestamp with time zone NOT NULL,
+    benutzt boolean NOT NULL DEFAULT false,
+    erstellt timestamp with time zone NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS passwort_reset_token_idx ON koch.passwort_reset (token_hash);
 
-INSERT INTO koch.tarif (code,name,ist_payg,preis_cents,markup_prozent,tages_limit_cents,wochen_limit_cents,sortierung) VALUES
-  ('basis','Basis',          false,  499, 100,   60,  125, 1),
-  ('plus', 'Plus',           false,  799,  85,  100,  200, 2),
-  ('max',  'Max',            false, 1499,  65,  180,  375, 3),
-  ('payg', 'Pay-as-you-go',  true,     0, 125, NULL, NULL, 4)
-ON CONFLICT (code) DO NOTHING;
-
-ALTER TABLE koch.account ADD COLUMN IF NOT EXISTS tarif_code text NOT NULL DEFAULT 'payg' REFERENCES koch.tarif(code);
-ALTER TABLE koch.account ADD COLUMN IF NOT EXISTS payg_overage boolean NOT NULL DEFAULT false;
-ALTER TABLE koch.account ADD COLUMN IF NOT EXISTS payg_overage_seit date;
-ALTER TABLE koch.plattform_einstellung ADD COLUMN IF NOT EXISTS overage_markup_prozent numeric(6,2) NOT NULL DEFAULT 65;
-
--- Tarif-Modell v3 (siehe migration_tarife_v3.sql): Abo als monatliche Freischaltung
--- (rollend), Zugang unabhängig vom Guthaben; Kündigung/Downgrade zum Periodenende.
-ALTER TABLE koch.account ADD COLUMN IF NOT EXISTS abo_bezahlt_bis date;
-ALTER TABLE koch.account ADD COLUMN IF NOT EXISTS abo_gekuendigt boolean NOT NULL DEFAULT false;
-ALTER TABLE koch.account ADD COLUMN IF NOT EXISTS abo_naechster_tarif text REFERENCES koch.tarif(code);
-
--- Guthaben-Einladungen (siehe migration_guthaben_einladung.sql): Admin-Codes mit
--- variablem Freiguthaben, einmalig einlösbar. Global, keine RLS.
-CREATE TABLE IF NOT EXISTS koch.guthaben_einladung (
-  code               text PRIMARY KEY,
-  betrag_cents       integer NOT NULL CHECK (betrag_cents > 0),
-  erstellt_von       integer REFERENCES koch.app_user(id) ON DELETE SET NULL,
-  erstellt_am        timestamptz NOT NULL DEFAULT now(),
-  eingeloest_am      timestamptz,
-  eingeloest_account integer REFERENCES koch.account(id) ON DELETE SET NULL
+CREATE TABLE IF NOT EXISTS koch.email_verify (
+    id serial PRIMARY KEY,
+    user_id integer NOT NULL,
+    token_hash text NOT NULL UNIQUE,
+    ablauf timestamp with time zone NOT NULL,
+    erstellt timestamp with time zone NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS email_verify_token_idx ON koch.email_verify (token_hash);
 
--- Preisliste, Beta-Anmeldelinks, Kündigungs-Nachweis (siehe
--- migration_beta_quelle_kuendigung.sql; auf Prod eingespielt am 26.07.2026).
+CREATE INDEX IF NOT EXISTS account_mitglied_user_idx ON koch.account_mitglied (user_id);
+CREATE INDEX IF NOT EXISTS person_acc_idx ON koch.person (account_id);
+CREATE INDEX IF NOT EXISTS app_session_user_idx ON koch.app_session (user_id);
+CREATE INDEX IF NOT EXISTS app_user_created_idx ON koch.app_user (created_at DESC);
 
-ALTER TABLE koch.plattform_einstellung
-  ADD COLUMN IF NOT EXISTS foto_pack_cents   integer NOT NULL DEFAULT 1299;
-ALTER TABLE koch.plattform_einstellung
-  ADD COLUMN IF NOT EXISTS foto_pack_credits integer NOT NULL DEFAULT 75;
-
-CREATE TABLE IF NOT EXISTS koch.beta_quelle (
-  slug        text PRIMARY KEY,
-  name        text    NOT NULL,
-  max_konten  integer NOT NULL DEFAULT 50,
-  trial_tage  integer NOT NULL DEFAULT 90,
-  aktiv       boolean NOT NULL DEFAULT true,
-  erstellt    timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE koch.account ADD COLUMN IF NOT EXISTS beta_quelle text;
-CREATE INDEX IF NOT EXISTS account_beta_quelle_idx
-  ON koch.account (beta_quelle) WHERE beta_quelle IS NOT NULL;
-
-INSERT INTO koch.beta_quelle (slug, name, max_konten, trial_tage, aktiv) VALUES
-  ('facebook',  'Facebook',  50, 90, true),
-  ('reddit',    'Reddit',    20, 90, false),
-  ('privat',    'Privat',    10, 90, false),
-  ('allgemein', 'Allgemein', 10, 90, false)
-ON CONFLICT (slug) DO NOTHING;
-
-CREATE TABLE IF NOT EXISTS koch.kuendigung (
-  id            bigserial PRIMARY KEY,
-  eingegangen   timestamptz NOT NULL DEFAULT now(),
-  email         text        NOT NULL,
-  name          text,
-  vertrag       text,
-  art           text        NOT NULL DEFAULT 'ordentlich',
-  grund         text,
-  zum_datum     date,
-  account_id    integer,
-  wirkung       text,
-  vertrag_bis   date,
-  ip            text,
-  bestaetigt_am timestamptz
-);
-CREATE INDEX IF NOT EXISTS kuendigung_email_idx       ON koch.kuendigung (lower(email));
-CREATE INDEX IF NOT EXISTS kuendigung_eingegangen_idx ON koch.kuendigung (eingegangen DESC);
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 64jw2tE8J8Ty0mZJ14aidxdYOcR2HfpMFZvrR0BeZtjDgSuLEmvCiI3B1pwuusD
 

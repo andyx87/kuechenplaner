@@ -4,8 +4,6 @@ CREATE EXTENSION IF NOT EXISTS citext;
 CREATE TABLE IF NOT EXISTS account (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
-  abo_status TEXT NOT NULL DEFAULT 'aktiv',
-  guthaben_cents INT NOT NULL DEFAULT 0,
   einstellungen JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

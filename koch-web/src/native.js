@@ -1,7 +1,5 @@
-// Native-Kontext (Capacitor). Wichtig fürs Store-Companion-Modell: In der nativen App
-// darf – Anti-Steering – NICHT auf Kauf/Abo verlinkt oder dafür geworben werden. Käufe
-// laufen ausschließlich über die Web-Version (Stripe). Im Browser ist IST_NATIVE=false,
-// dort bleiben die Kauf-Buttons wie gehabt.
+// Native-Kontext (Capacitor): Zurück-Taste, öffentliche Web-Adresse für geteilte Links,
+// kein Service-Worker in der App-Hülle. Im Browser ist IST_NATIVE=false.
 import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 

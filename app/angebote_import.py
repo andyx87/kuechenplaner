@@ -19,9 +19,7 @@ import re
 import uuid
 from datetime import date as _d, timedelta as _td
 
-from openai import AsyncOpenAI
-
-from . import billing, config, gauth, services
+from . import ki, services
 from .userauth import current_account
 
 # job_id -> {status, phase, seite, seiten, gefunden, importiert, error, erkannt, ...}
@@ -30,16 +28,6 @@ TMP_DIR = os.environ.get("ANGEBOTE_TMP_DIR", "/tmp/koch_angebote")
 MAX_SEITEN = 24
 TEXT_MIN = 200  # ab so vielen Zeichen Seitentext: Text-Pfad statt Vision-Backup
 
-_client: AsyncOpenAI | None = None
-
-
-def _c() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(base_url=config.VERTEX_BASE_URL, api_key=gauth.get_token())
-    else:
-        _client.api_key = gauth.get_token()
-    return _client
 
 
 def _render(path: str) -> list[str]:
@@ -205,10 +193,8 @@ _MAX_OUT = 4096
 
 async def _seite_extrakt(url: str, heute: str) -> dict:
     """Vision-Backup: Seite als Bild an das Modell."""
-    resp = await billing.complete(
-        _c(), "angebote-import",
-        model=await billing.modell_fuer_konto(),
-        max_tokens=_MAX_OUT,
+    resp = await ki.complete(
+        "angebote-import", max_tokens=_MAX_OUT,
         messages=[
             {"role": "system", "content": _SYS},
             {"role": "user", "content": [
@@ -222,10 +208,8 @@ async def _seite_extrakt(url: str, heute: str) -> dict:
 
 async def _seite_text(text: str, heute: str) -> dict:
     """Text-Pfad: vorhandene PDF-Textebene direkt auswerten (ohne Bild)."""
-    resp = await billing.complete(
-        _c(), "angebote-import",
-        model=await billing.modell_fuer_konto(),
-        max_tokens=_MAX_OUT,
+    resp = await ki.complete(
+        "angebote-import", max_tokens=_MAX_OUT,
         messages=[
             {"role": "system", "content": _SYS},
             {"role": "user", "content": f"Heute ist {heute}. Erkenne Markt und Gueltigkeitszeitraum (falls genannt) und erfasse alle Angebote aus diesem Prospekt-Seitentext. Antworte nur mit JSON.\n\nSEITENTEXT:\n{text[:14000]}"},
@@ -377,7 +361,7 @@ async def _run(job_id: str, path: str, haendler: str | None, gv: str | None, gb:
                             url = "data:image/png;base64," + base64.b64encode(png).decode()
                             meta = await _seite_extrakt(url, heute)
                             modi.add("vision")
-                    except (billing.LimitErreicht, PermissionError):
+                    except PermissionError:
                         raise  # Limit/Sperre klar melden, nicht als "0 Angebote" verschlucken
                     except Exception:
                         meta = {}
@@ -414,7 +398,7 @@ async def _run(job_id: str, path: str, haendler: str | None, gv: str | None, gb:
             try:
                 meta = await _seite_extrakt(url, heute)
                 modi.add("vision")
-            except (billing.LimitErreicht, PermissionError):
+            except PermissionError:
                 if idoc is not None:
                     idoc.close()
                 raise  # Limit/Sperre klar melden, nicht als "0 Angebote" verschlucken
@@ -447,10 +431,6 @@ async def _run(job_id: str, path: str, haendler: str | None, gv: str | None, gb:
         job["importiert"] = await _import(offers, eff_h, eff_v, eff_b)
         job["markt"] = eff_h
         job.update(status="fertig")
-    except billing.LimitErreicht as e:
-        # KI-Limit erreicht: klar als Limit melden (Frontend zeigt 402-Dialog),
-        # statt den Job stillschweigend mit 0 Angeboten "fertig" zu melden.
-        job.update(status="limit", phase="limit", limit=billing.limit_payload(e.info))
     except PermissionError as e:
         job.update(status="fehler", error=str(e))
     except Exception as e:

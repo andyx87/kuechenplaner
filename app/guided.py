@@ -8,23 +8,10 @@ in BASIS-Portionen; das Frontend skaliert auf die Zielportionen.
 from __future__ import annotations
 
 import json
-import re
 
-from openai import AsyncOpenAI
-
-from . import billing, config, gauth, services
+from . import ki, services
 from .db import acquire
 
-_client: AsyncOpenAI | None = None
-
-
-def _c() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(base_url=config.VERTEX_BASE_URL, api_key=gauth.get_token())
-    else:
-        _client.api_key = gauth.get_token()
-    return _client
 
 
 _SYS = (
@@ -135,10 +122,8 @@ async def strukturiere(rezept: dict, varianten: list[int] | None) -> list[dict]:
         f"Rezept: {rezept.get('name')}\nBasis-Portionen: {basis}\n\n"
         f"ZUTATEN:\n{zlist}\n\nZUBEREITUNG:\n{komp_txt}\n\nGib die Schritte als JSON zurück."
     )
-    resp = await billing.complete(
-        _c(), "guided-cooking",
-        model=await billing.modell_fuer_konto(),
-        max_tokens=8192,
+    resp = await ki.complete(
+        "guided-cooking", max_tokens=8192,
         messages=[{"role": "system", "content": _SYS}, {"role": "user", "content": user}],
     )
     return _parse(resp.choices[0].message.content or "")
@@ -188,10 +173,8 @@ async def frage(rezept_id: int, schritt_text: str | None, frage_text: str) -> di
     ctx = f"Rezept: {rezept.get('name')}. Zutaten: {zlist}."
     if (schritt_text or "").strip():
         ctx += f"\nAktueller Schritt: {schritt_text.strip()}"
-    resp = await billing.complete(
-        _c(), "guided-frage",
-        model=await billing.modell_fuer_konto(),
-        max_tokens=512,
+    resp = await ki.complete(
+        "guided-frage", max_tokens=512,
         messages=[{"role": "system", "content": sys},
                   {"role": "user", "content": f"{ctx}\n\nFrage: {frage_text}"}],
     )

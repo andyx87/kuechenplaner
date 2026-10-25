@@ -1,12 +1,7 @@
-"""Rezeptbilder: 1:1-Zuschnitt/Resize + KI-Generierung via gemini-3.1-flash-image.
+"""Rezeptbilder: 1:1-Zuschnitt/Resize + KI-Generierung.
 
 Eigene Uploads werden serverseitig auf quadratisch + max 1024 px gerechnet und als
-JPEG-Data-URL gespeichert (Spalte rezepte.bild). Die Generierung läuft über den Vertex
-generateContent-Endpoint (Imagen 4 wird am 17.08.2026 abgeschaltet); zwei Auflösungen
-(Stufe schnell=512, standard=1024) und TOKENBASIERTE Abrechnung (siehe
-billing.record_bild_gemini). Im v4-Kontingent-Modell reserviert billing.gate_v4() das
-Monats-Bildkontingent bzw. den Bild-Credit VOR dem Aufruf (S-7); jeder Fehl-Ausgang gibt
-die Reservierung zurück (_reservierung_zurueck).
+JPEG-Data-URL gespeichert (Spalte rezepte.bild).
 """
 from __future__ import annotations
 
@@ -14,8 +9,7 @@ import base64
 import io
 import logging
 
-from . import billing, config, gauth
-from .db import acquire
+from . import config, gauth
 from .userauth import current_account, current_user, darf_ki
 
 log = logging.getLogger("koch")
@@ -74,51 +68,14 @@ def quadrat_resize(raw: bytes, max_px: int = 768) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-async def _reservierung_zurueck(v4: bool, acc: int, info: "dict | None", reserviert) -> None:
-    """F3/S-7: Bei JEDEM Fehl-Ausgang die Vorab-Reservierung zurückgeben.
-    v4: Reservierungszeile löschen + ggf. den im Gate gezogenen Bild-Credit erstatten.
-    PAYG: reservierte Cent aufs Guthaben zurückbuchen."""
-    if v4:
-        await billing.freigeben_v4(acc, info, "rezept-bild")
-    else:
-        await billing._erstatte(acc, reserviert, "rezept-bild")
-
-
 async def generiere_rezeptbild(name: str, beschreibung: str | None = None,
                                zutaten: list[dict] | None = None) -> str | None:
     """Erzeugt ein quadratisches Food-Foto via Imagen. Ambiente richtet sich nach der
     Küche (Stil-Prompt); Gericht + Zutaten gehen für ein korrektes Ergebnis mit in den
-    Prompt. Gibt eine Data-URL zurück (oder None); bucht bei Erfolg die Pauschale."""
+    Prompt. Gibt eine Data-URL zurück (oder None)."""
     # Harte Barriere: ohne KI-Freigabe kein Bild generieren.
     if not await darf_ki(current_user.get(), current_account.get()):
         return None
-    # Tarif-Limit vor der (kostenpflichtigen) Generierung prüfen – und im v4-Modell das
-    # Kontingent bzw. den Bild-Credit SOFORT unter dem Konto-Row-Lock reservieren (S-7).
-    # Ohne das überzogen N parallele Anfragen dasselbe Monatskontingent/denselben Credit.
-    acc = current_account.get() or 1
-    v4 = config.ABO_MODELL_V4
-    _limit = None
-    try:
-        if v4:
-            _limit = await billing.gate_v4(acc, ist_bild=True, zweck="rezept-bild")
-        else:
-            async with acquire() as con:
-                _limit = await billing.limit_pruefen(con, acc)
-    except Exception as e:
-        # F9: Fail-closed – ohne gültige Prüfung kein kostenpflichtiges Bild.
-        log.warning("limit_pruefen (Bild) fehlgeschlagen: %s", e)
-        raise billing.AbrechnungspruefungFehlgeschlagen() from e
-    if _limit and _limit.get("blockiert"):
-        raise billing.LimitErreicht(_limit)
-    if v4:
-        # v4: kein €-Guthaben. Kontingent/Credit sind über die Reservierungszeile gedeckt;
-        # bei Erfolg löst record_bild_gemini() sie ab, bei jedem Fehl-Ausgang wird sie
-        # unten zurückgegeben (inkl. Erstattung eines gezogenen Bild-Credits).
-        reserviert = 0
-    else:
-        # F3: Vorab-Reservierung wie im Chat-Pfad (verhindert Nebenläufigkeits-Abuse). Bei
-        # jedem Fehl-Ausgang wird sie erstattet; bei Erfolg gegen die realen Kosten verrechnet.
-        reserviert = await billing._reserviere_payg(acc, "rezept-bild")
     zlist = ", ".join(
         (z.get("zutat") or z.get("name") or "").strip()
         for z in (zutaten or []) if (z.get("zutat") or z.get("name"))
@@ -126,26 +83,15 @@ async def generiere_rezeptbild(name: str, beschreibung: str | None = None,
     # EIN beschreibender Satz (kein \n, keine Anweisungen) -> verhindert gerenderten Text.
     gericht = name + (f", with {zlist}" if zlist else "")
     prompt = f"{gericht}. {config.IMAGE_STYLE}."
-    model, image_size, stufe = await billing.bild_modell_und_preis()
     try:
-        raw, usage = await _gemini_bild_generate(prompt, image_size)
+        raw, _usage = await _gemini_bild_generate(prompt, "1K")
     except Exception as e:
-        log.warning("Bildgenerierung (Gemini) fehlgeschlagen: %s", e)
-        await _reservierung_zurueck(v4, acc, _limit, reserviert)
+        log.warning("Bildgenerierung fehlgeschlagen: %s", e)
         return None
     if not raw:
-        await _reservierung_zurueck(v4, acc, _limit, reserviert)
         return None
     try:
-        max_px = 1024 if stufe == "standard" else 512
-        data_url = quadrat_resize(raw, max_px=max_px)
+        return quadrat_resize(raw, max_px=1024)
     except Exception as e:
         log.warning("Bild konnte nicht verarbeitet werden: %s", e)
-        await _reservierung_zurueck(v4, acc, _limit, reserviert)
         return None
-    await billing.record_bild_gemini(usage.get("prompt", 0), usage.get("image", 0),
-                                     usage.get("thought", 0), stufe, reserviert=reserviert,
-                                     reservierung_id=(_limit or {}).get("reservierung_id"),
-                                     credit_gezogen=bool((_limit or {}).get("credit_gezogen")),
-                                     credit_bild=bool((_limit or {}).get("credit_bild")))
-    return data_url

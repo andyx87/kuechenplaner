@@ -14,13 +14,9 @@ async function req(path, opts = {}) {
     if (res.status === 401) { const e = new Error('nicht angemeldet'); e.status = 401; throw e }
     const ctErr = res.headers.get('content-type') || ''
     if (ctErr.includes('application/json')) {
-      // strukturierter Fehler (z.B. 402 Tarif-Limit) → body + status anhängen
+      // strukturierter Fehler → body + status anhängen
       let body = null
       try { body = await res.json() } catch { /* ignore */ }
-      // Tarif-Limit global signalisieren → App zeigt den LimitDialog (PAYG/Upgrade).
-      if (res.status === 402 && body && body.fehler === 'limit') {
-        try { window.dispatchEvent(new CustomEvent('koch:limit', { detail: body })) } catch { /* ignore */ }
-      }
       const e = new Error((body && (body.fehler || body.detail)) || res.statusText)
       e.status = res.status; e.body = body; throw e
     }
@@ -38,20 +34,11 @@ export const api = {
   setToken,
   authMe: () => req('/auth/me'),
   authLogin: (email, password) => req('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  authRegister: (email, password, name, beta = null) => req('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name, beta }) }),
-  // Beta-Anmeldelink je Kanal (/beta/<slug>) – öffentlich, ohne Token
-  betaInfo: (slug) => req('/auth/beta/' + encodeURIComponent(slug)),
-  // Kündigung: öffentlich (§ 312k, ohne Login) bzw. aus der angemeldeten App.
-  // Zweistufig (S-1): Senden mailt nur einen Bestätigungslink, gekündigt wird
-  // erst über /auth/kuendigung/bestaetigen mit dem Token aus der Mail.
-  kuendigungSenden: (daten) => req('/auth/kuendigung', { method: 'POST', body: JSON.stringify(daten) }),
-  kuendigungBestaetigen: (token) => req('/auth/kuendigung/bestaetigen', { method: 'POST', body: JSON.stringify({ token }) }),
-  aboKuendigen: () => req('/konto/abo-kuendigen', { method: 'POST' }),
+  authRegister: (email, password, name) => req('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
   authLogout: () => req('/auth/logout', { method: 'POST' }),
   passwortResetAnfordern: (email) => req('/auth/passwort-reset-anfordern', { method: 'POST', body: JSON.stringify({ email }) }),
   passwortReset: (token, password) => req('/auth/passwort-reset', { method: 'POST', body: JSON.stringify({ token, password }) }),
   emailVerifizieren: (token) => req('/auth/email-verifizieren', { method: 'POST', body: JSON.stringify({ token }) }),
-  rechtstext: (typ) => req('/rechtstext/' + encodeURIComponent(typ)),
   // Einladungen (Familienmitglieder)
   einladungen: () => req('/einladungen'),
   einladungErstellen: (email = '') => req('/einladungen', { method: 'POST', body: JSON.stringify({ email }) }),
@@ -59,40 +46,11 @@ export const api = {
   einladungInfo: (token) => req('/auth/einladung/' + encodeURIComponent(token)),
   einladungEinloesen: (token, name, password, email) =>
     req('/auth/einladung-einloesen', { method: 'POST', body: JSON.stringify({ token, name, password, email }) }),
-  // Abrechnung / Verbrauch / Plattform
-  abrechnung: (q = '') => req('/abrechnung' + (q ? '?' + q : '')),
-  abrechnungProtokoll: (q = '') => req('/abrechnung/protokoll' + (q ? '?' + q : '')),
-  abrechnungCsv: (q = '') => req('/abrechnung/export.csv' + (q ? '?' + q : '')),
-  modellStufe: () => req('/konto/modell-stufe'),
-  modellStufeSetzen: (stufe) => req('/konto/modell-stufe', { method: 'PUT', body: JSON.stringify({ stufe }) }),
-  bildStufe: () => req('/konto/bild-stufe'),
-  bildStufeSetzen: (stufe) => req('/konto/bild-stufe', { method: 'PUT', body: JSON.stringify({ stufe }) }),
-  aboTyp: () => req('/konto/abo-typ'),
-  aboTypSetzen: (abo_typ) => req('/konto/abo-typ', { method: 'PUT', body: JSON.stringify({ abo_typ }) }),
-  // Preisliste (EINE Quelle für alle Preis-/Kontingenttexte – s. preise.js)
-  preise: () => req('/preise'),
-  // Tarif (nutzungsbasiertes Abo)
-  tarif: () => req('/konto/tarif'),
-  tarifSetzen: (code) => req('/konto/tarif', { method: 'PUT', body: JSON.stringify({ code }) }),
-  paygOverageSetzen: (an) => req('/konto/payg-overage', { method: 'PUT', body: JSON.stringify({ an }) }),
   kontoLoeschen: (modus = 'selbst') => req('/konto/loeschen', { method: 'POST', body: JSON.stringify({ modus }) }),
   // Öffentliche Kontolöschung /konto-loeschen (ohne Login): erst Link anfordern,
   // dann per Bestätigungstoken aus der Mail ausführen – nie allein per E-Mail-Eingabe.
   kontoLoeschenAnfordern: (email) => req('/auth/konto-loeschen-anfordern', { method: 'POST', body: JSON.stringify({ email }) }),
   kontoLoeschenBestaetigen: (token) => req('/auth/konto-loeschen', { method: 'POST', body: JSON.stringify({ token }) }),
-  // Guthaben-Einladungen (Admin erzeugt Code mit Freiguthaben; User löst per Link ein)
-  guthabenEinladungErzeugen: (betrag_cents) => req('/admin/guthaben-einladung', { method: 'POST', body: JSON.stringify({ betrag_cents }) }),
-  guthabenEinloesen: (code) => req('/guthaben/einloesen', { method: 'POST', body: JSON.stringify({ code }) }),
-  guthabenCheckout: (betrag_cents) => req('/guthaben/checkout', { method: 'POST', body: JSON.stringify({ betrag_cents }) }),
-  guthabenCheckoutBestaetigen: (session_id) => req('/guthaben/checkout-bestaetigen', { method: 'POST', body: JSON.stringify({ session_id }) }),
-  aboCheckout: () => req('/abo/checkout', { method: 'POST' }),
-  creditsCheckout: () => req('/credits/checkout', { method: 'POST' }),
-  kontingent: () => req('/konto/kontingent'),
-  tarife: () => req('/tarife'),
-  adminTarife: () => req('/admin/tarife'),
-  adminTarifeSetzen: (tarife) => req('/admin/tarife', { method: 'PUT', body: JSON.stringify({ tarife }) }),
-  adminPreise: () => req('/admin/preise'),
-  adminPreiseSetzen: (p) => req('/admin/preise', { method: 'PUT', body: JSON.stringify(p) }),
   adminUsers: (params = {}) => {
     const qs = new URLSearchParams()
     if (params.q) qs.set('q', params.q)
@@ -103,18 +61,15 @@ export const api = {
     return req('/admin/users' + (s ? '?' + s : ''))
   },
   adminKennzahlen: () => req('/admin/kennzahlen'),
-  adminCloudKosten: () => req('/admin/cloud-kosten'),
   adminUserUploadSetzen: (uid, erlaubt) => req('/admin/users/' + uid + '/angebote-upload', { method: 'PUT', body: JSON.stringify({ erlaubt }) }),
   adminUserKiSetzen: (uid, erlaubt) => req('/admin/users/' + uid + '/ki', { method: 'PUT', body: JSON.stringify({ erlaubt }) }),
   adminUserRolleSetzen: (uid, rolle) => req('/admin/users/' + uid + '/rolle', { method: 'PUT', body: JSON.stringify({ rolle }) }),
   adminUserAktivSetzen: (uid, aktiv) => req('/admin/users/' + uid + '/aktiv', { method: 'PUT', body: JSON.stringify({ aktiv }) }),
-  adminUserGuthaben: (uid, betrag_cents) => req('/admin/users/' + uid + '/guthaben', { method: 'POST', body: JSON.stringify({ betrag_cents }) }),
 
-  // Bugreports (Beta)
+  // Bugreports
   bugreportSenden: (text, seite) => req('/bugreport', { method: 'POST', body: JSON.stringify({ text, seite }) }),
   adminBugreports: (nurOffen = false) => req('/admin/bugreports' + (nurOffen ? '?nur_offen=true' : '')),
   adminBugreportStatus: (id, status) => req('/admin/bugreports/' + id, { method: 'PUT', body: JSON.stringify({ status }) }),
-  bugreportBelohnungen: () => req('/me/bugreport-belohnungen'),
 
   // Zutaten-Kuratierung (Super-Admin)
   adminZutatenKuratierung: () => req('/admin/zutaten-kuratierung'),

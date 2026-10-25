@@ -11,18 +11,12 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 # laeuft ueber die Kontaktadresse aus SUPPORT_EMAIL (Footer/Impressum).
 MAIL_FROM = os.environ.get("MAIL_FROM", "Topfplan <no-reply@example.com>")
 # Basis-URL für Links in E-Mails (Einladung, Passwort-Reset, Bestätigung).
-# Auch Fallback fuer Stripe-Redirects (Erfolg/Abbruch), wenn der Request keinen Origin liefert.
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8096").rstrip("/")
 
 # Betreiberangaben fuer den Footer der System-Mails (leer = nicht angezeigt).
 # Betreiber muessen diese Werte selbst setzen.
 OPERATOR_NAME = os.environ.get("OPERATOR_NAME", "")
 SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "")
-
-# --- IT-Recht Kanzlei – Legal Text Interface (Rechtstexte-Schnittstelle) ---
-# Gemeinsames Auth-Token; muss mit dem im Mandantenportal hinterlegten Wert
-# übereinstimmen. Ohne Token weist der Endpunkt jede Anfrage ab (Fehler 3).
-ITRK_TOKEN = os.environ.get("ITRK_TOKEN", "")
 
 # --- KI: Google Vertex AI (OpenAI-kompatibler Endpoint) ---
 # Authentifizierung ueber Service-Account/ADC (kein API-Key): in der Cloud
@@ -93,13 +87,6 @@ except ValueError:
 # gezielt aktivieren – dort ist der Port nicht öffentlich erreichbar.
 MCP_ENABLED = os.environ.get("MCP_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
 
-# --- Abo-Modell v4 (Kontingent statt €-Guthaben/PAYG) ---
-# Secure/konservativ-by-default AUS: solange nicht gesetzt, läuft die bisherige
-# PAYG-/Guthaben-Abrechnung unverändert. Wird erst zum Go-Live aktiviert (Stufe 4/5).
-# Neues Modell: Gratis (monatl. KI-Text- + Bild-Kontingent), Abo (KI frei, Bild-Kontingent),
-# Trial (Vollzugang bis trial_bis), Bild-Credits über dem Bild-Limit. Kein Guthaben/PAYG.
-ABO_MODELL_V4 = os.environ.get("ABO_MODELL_V4", "0").strip().lower() in ("1", "true", "yes", "on")
-
 # Oeffentlicher ICS-Speiseplan-Feed: eigener Token (in der Abo-URL), damit Google
 # Kalender den Feed ohne vorgeschalteten Login abrufen kann. Steht die App hinter
 # einem Zugangsschutz, muss der ICS-Pfad dort freigegeben sein. Leer = Feed deaktiviert.
@@ -107,18 +94,6 @@ KALENDER_TOKEN = os.environ.get("KALENDER_TOKEN", "")
 # Basis-URL des koch-web Frontends fuer Rezept-Hyperlinks im Kalender,
 # z.B. https://kochen.example.com (ohne abschliessenden Slash).
 WEB_BASE_URL = os.environ.get("WEB_BASE_URL", "").rstrip("/")
-
-# --- Stripe: Abo (wiederkehrend) + Foto-Credit-Pack (einmalig) ---
-# Price-IDs werden im Stripe-Dashboard angelegt (Live-Modus) und hier per Env gesetzt.
-# Ohne sie sind die jeweiligen Checkouts deaktiviert (Endpoint meldet "nicht konfiguriert").
-STRIPE_PRICE_ABO = os.environ.get("STRIPE_PRICE_ABO", "")          # wiederkehrend, 9,99 €/Mo
-STRIPE_PRICE_CREDITS = os.environ.get("STRIPE_PRICE_CREDITS", "")  # einmalig, 12,99 € Foto-Pack
-FOTO_PACK_CREDITS = int(os.environ.get("FOTO_PACK_CREDITS", "75")) # Bild-Credits je Pack-Kauf
-
-# --- Beta: Inaktive Tester zurueckstufen ---
-# Beta-Tester, die laenger als N Tage inaktiv sind, verlieren den Vollzugang (trial_bis wird
-# geloescht, Konto laeuft als Gratis weiter) und ihr Beta-Platz wird wieder frei. 0 = aus.
-BETA_INAKTIV_TAGE = int(os.environ.get("BETA_INAKTIV_TAGE", "10"))
 
 # --- Prospekt-Import: Modellstufe ---
 # Der Import macht EINEN Modellaufruf pro Prospektseite (bis 24 Seiten). Angebote von einer

@@ -2,7 +2,7 @@
 
 Ohne RESEND_API_KEY ist der Versand ein No-Op (wird nur geloggt) – die App
 bleibt voll funktionsfähig. So kann der Code deployt werden, bevor das Resend-
-Konto/der Key existiert. Sobald der Key (als Cloud-Run-Secret RESEND_API_KEY)
+Konto/der Key existiert. Sobald der Key (Umgebungsvariable RESEND_API_KEY)
 gesetzt ist, werden echte Mails verschickt.
 """
 import asyncio
@@ -95,8 +95,7 @@ def _layout(titel: str, intro: str, button_text: str, button_url: str, hinweis: 
       <img src="{base}/icon-192.png" width="64" height="64" alt="Topfplan"
            style="display:inline-block;border-radius:16px;border:0" />
       <div style="font-weight:800;letter-spacing:-.02em;font-size:24px;color:#c8823c;margin-top:10px">Topfplan</div>
-      <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#c8823c;margin-top:3px">Genuss mit Verstand</div>
-    </div>
+          </div>
     <div style="background:#fff;border:1px solid rgba(40,30,15,.1);border-radius:18px;padding:30px 28px;box-shadow:0 10px 30px -16px rgba(80,60,30,.25)">
       <h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:24px;color:#2a2018">{t}</h1>
       <div style="color:#5a5346;font-size:15px;line-height:1.65">{intro}</div>
@@ -162,51 +161,18 @@ async def send_verifizierung(email: str, token: str) -> dict:
                               "Wenn du dich nicht bei Topfplan registriert hast, ignoriere diese E-Mail."))
 
 
-async def send_kuendigung_link(email: str, token: str, daten: dict) -> dict:
-    """Bestätigungslink für die öffentliche Kündigung (/kuendigen, Stufe 1 – S-1).
-
-    Das Abo wird erst nach dem Klick gekündigt – niemals allein durch die Formular-
-    Eingabe. Die Mail dient gleichzeitig als Zugangsbestätigung in Textform (§ 312k
-    BGB): Inhalt der Erklärung + Datum/Uhrzeit des Eingangs. Der Token steckt im
-    URL-Fragment (#bestaetigen=…) – Fragmente erreichen den Server nicht und landen
-    so nicht in Zugriffslogs (S-10-Linie)."""
-    from . import kuendigung as _k
-    link = f"{config.APP_BASE_URL}/kuendigen#bestaetigen={token}"
-    intro = _k.zugang_html(daten)
-    return await send(email, "Deine Kündigung bestätigen",
-                      _layout("Kündigung bestätigen", intro, "Kündigung bestätigen", link,
-                              "Warst du das nicht? Dann ignoriere diese E-Mail – dein Abo "
-                              "läuft unverändert weiter. Der Link ist aus Sicherheitsgründen "
-                              "1 Stunde gültig und kann nur einmal verwendet werden."))
-
-
-async def send_kuendigung_bestaetigung(email: str, daten: dict) -> dict:
-    """Empfangsbestätigung einer Kündigung in Textform – Pflicht nach § 312k BGB.
-    Enthält Inhalt der Erklärung, Datum/Uhrzeit des Zugangs und das Vertragsende.
-    Geht erst NACH dem Klick auf den Bestätigungslink raus (Stufe 2, s. kuendigung.py) –
-    das Vertragsende gehört damit nie in eine öffentliche HTTP-Antwort (S-2)."""
-    from . import kuendigung as _k
-    intro = _k.bestaetigung_html(daten)
-    return await send(email, "Bestätigung deiner Kündigung",
-                      _layout("Kündigung bestätigt", intro, "Zu Topfplan", config.APP_BASE_URL,
-                              "Diese Bestätigung dient als Nachweis – bitte bewahre sie auf. "
-                              "Fragen? Antworte einfach auf diese E-Mail."))
-
-
 async def send_konto_loeschung(email: str, token: str) -> dict:
     """Bestätigungslink für die öffentliche Kontolöschung (/konto-loeschen).
     Gelöscht wird erst nach dem Klick – niemals allein durch die Formular-Eingabe."""
     # S3 (Sicherheitsprüfung AND-24): Token im URL-FRAGMENT statt im Query. Fragmente
-    # werden nicht an den Server übermittelt (keine Cloud-Run-/nginx-Zugriffslogs, kein
+    # werden nicht an den Server übermittelt (keine Proxy-/nginx-Zugriffslogs, kein
     # Referer-Leak); das Frontend entfernt den Zusatz nach dem Lesen aus der Adresszeile
     # (AuthGate.jsx, history.replaceState).
-    # D3 (Sicherheitsprüfung AND-38 / AND-75): Hinweis auf sofortiges Abo-Ende und Verfall bezahlter Restlaufzeit.
     link = f"{config.APP_BASE_URL}/konto-loeschen#loesch={token}"
     intro = ("du hast angefordert, dein <b>Topfplan-Konto dauerhaft zu löschen</b>. Bitte "
              "bestätige das über den Button – erst dann wird gelöscht. Deine Rezepte, "
              "Pläne, Vorräte und persönlichen Daten werden dabei entfernt; dieser "
-             "Schritt kann nicht rückgängig gemacht werden. "
-             "Ein laufendes Abo endet sofort; die bereits bezahlte Restlaufzeit verfällt.")
+             "Schritt kann nicht rückgängig gemacht werden.")
     return await send(email, "Kontolöschung bestätigen",
                       _layout("Konto löschen bestätigen", intro, "Konto endgültig löschen", link,
                               "Warst du das nicht? Dann ignoriere diese E-Mail – es wird nichts "
@@ -216,22 +182,8 @@ async def send_konto_loeschung(email: str, token: str) -> dict:
 async def send_konto_geloescht(email: str) -> dict:
     """Abschlussbestätigung, nachdem die Kontolöschung ausgeführt wurde (Nachweis)."""
     intro = ("dein <b>Topfplan-Konto wurde gelöscht</b>. Deine Rezepte, Pläne, Vorräte und "
-             "persönlichen Daten sind entfernt. Nachweise, die wir gesetzlich aufbewahren "
-             "müssen (z. B. Kündigungsprotokoll, Buchungsbelege), bleiben erhalten.")
+             "persönlichen Daten sind entfernt.")
     return await send(email, "Dein Topfplan-Konto wurde gelöscht",
                       _layout("Konto gelöscht", intro, "Zu Topfplan", config.APP_BASE_URL,
                               "Schade, dass du gehst. Diese E-Mail dient dir als Bestätigung. "
                               "Fragen? Antworte einfach auf diese E-Mail."))
-
-
-async def send_beta_beendet(email: str, inaktiv_tage: int) -> dict:
-    """Info an Beta-Tester: Vollzugang wegen Inaktivität beendet, Konto läuft gratis weiter."""
-    intro = (f"du warst länger als {int(inaktiv_tage)} Tage nicht in Topfplan aktiv, deshalb haben "
-             "wir deinen Beta-Vollzugang beendet und den Platz an die Warteliste weitergegeben. "
-             "<b>Dein Konto und alle Daten bleiben erhalten</b> – Rezepte, Wochenplan, "
-             "Einkaufsliste und Vorrat kannst du in der kostenlosen Version weiter nutzen, "
-             "inklusive eines monatlichen Gratis-Kontingents für die KI-Funktionen.")
-    return await send(email, "Dein Topfplan-Beta-Zugang wurde beendet",
-                      _layout("Beta-Zugang beendet", intro, "Weiter mit Topfplan", config.APP_BASE_URL,
-                              "Du willst doch weiter intensiv testen? Antworte einfach auf diese "
-                              "E-Mail – wir schalten dich gern wieder frei."))

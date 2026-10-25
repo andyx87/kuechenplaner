@@ -2,7 +2,7 @@
 Zweckbindung der Reset-Tokens (app/userauth.py).
 
 Läuft ohne Postgres, ohne FastAPI und ohne argon2: Die Module mit externen
-Abhängigkeiten (app.db, app.mailer, app.services, app.stripe_pay, argon2) werden vor
+Abhängigkeiten (app.db, app.mailer, app.services, argon2) werden vor
 dem Import durch Stubs ersetzt. Getestet wird die echte Logik von kontoloeschung.py und
 userauth.py – inklusive der Sicherheitsregeln aus AND-10:
 
@@ -15,17 +15,10 @@ userauth.py – inklusive der Sicherheitsregeln aus AND-10:
 
 und der Nachbesserungen aus der Sicherheitsprüfung AND-24:
 
-  • S1: Kontolöschung beendet das Stripe-Abo (Fall A: sofort via Subscription.delete,
-    Fall B: zum Periodenende via kuendige_abo), Stripe-Fehler blockieren die Löschung
-    nicht (echtes app.services, nur db/stripe_pay gestubbt),
+  • Löschlogik von services.loesche_eigenes_konto (echtes app.services, nur db gestubbt),
   • S2: Mailversand ist vom Request entkoppelt – identische, schnelle Antwort für
     Treffer- und Nein-Zweig (keine Enumeration über die Antwortzeit),
   • S5: Fehlertext nach verbrauchtem Token verlangt einen NEUEN Link,
-
-und der Nachbesserungen aus der Delta-Sicherheitsprüfung AND-38 (AND-75):
-
-  • D1: Fall B nullt stripe_customer_id am Account; stripe_subscription_id bleibt unverändert,
-  • D3: Bestätigungstext und Lösch-Mail weisen auf sofortiges Abo-Ende und Verfall hin.
 
 Ausführung vom Repo-Root:
     python3 -m pytest tests/ -q
@@ -115,13 +108,11 @@ class FakeCon(FakeDb):
 
 
 class ServicesFakeDb:
-    """Mini-asyncpg-Ersatz für das ECHTE services.loesche_eigenes_konto (S1-Tests):
-    bedient den Stripe-Vorab-Check, die Mitgliedschafts-Abfragen und die Lösch-EXECUTEs.
+    """Mini-asyncpg-Ersatz für das ECHTE services.loesche_eigenes_konto:
+    bedient die Mitgliedschafts-Abfragen und die Lösch-EXECUTEs.
     `uid` ist der löschende Nutzer (current_user), `acc` kommt aus current_account."""
 
     def __init__(self):
-        self.sub_id = "sub_test123"   # stripe_subscription_id des Kontos (None = kein Abo)
-        self.cust_id = "cus_test123"  # stripe_customer_id des Kontos (D1)
         self.rolle = "owner"          # Rolle des löschenden Nutzers im Haushalt
         self.mitglieder = [42]        # user_ids im Haushalt (Reihenfolge = beigetreten_am)
         self.uid = 42
@@ -129,11 +120,6 @@ class ServicesFakeDb:
         self.bypass_aufrufe = []      # bypass-Flag je acquire()
 
     async def fetchrow(self, sql, *args):
-        if "stripe_subscription_id AS sub" in sql:            # Vorab-Check (S1-Helfer)
-            andere = [m for m in self.mitglieder if m != self.uid]
-            return {"sub": self.sub_id,
-                    "ist_owner": self.rolle == "owner" and self.uid in self.mitglieder,
-                    "andere": len(andere)}
         if "rolle FROM account_mitglied" in sql:              # Lösch-Transaktion
             if self.uid in self.mitglieder:
                 return {"rolle": self.rolle}
@@ -150,8 +136,6 @@ class ServicesFakeDb:
 
     async def execute(self, sql, *args):
         self.executes.append((sql, args))
-        if "UPDATE account" in sql and "stripe_customer_id = NULL" in sql:
-            self.cust_id = None
         return "DELETE 1"
 
     @asynccontextmanager
@@ -239,37 +223,7 @@ async def _loesche_eigenes_konto(modus="selbst"):
 services_stub.loesche_eigenes_konto = _loesche_eigenes_konto
 sys.modules["app.services"] = services_stub
 
-# stripe_pay-Stub für die S1-Tests (echtes services.loesche_eigenes_konto ruft
-# verfuegbar()/_stripe()/kuendige_abo() daraus auf).
-stripe_pay_stub = types.ModuleType("app.stripe_pay")
-stripe_pay_stub.kuendige_aufrufe = []
-stripe_pay_stub.kuendige_ergebnis = {"ok": True, "stripe": True}
-stripe_pay_stub.verfuegbar = lambda: True
 
-
-class FakeSubscription:
-    """Mitschnitt für stripe.Subscription.delete (S1, Fall A)."""
-    deleted: list = []
-    fehler: Exception | None = None
-
-    @staticmethod
-    def delete(sub_id):
-        if FakeSubscription.fehler:
-            raise FakeSubscription.fehler
-        FakeSubscription.deleted.append(sub_id)
-        return {"id": sub_id, "status": "canceled"}
-
-
-stripe_pay_stub._stripe = lambda: types.SimpleNamespace(Subscription=FakeSubscription)
-
-
-async def _kuendige_abo(acc):
-    stripe_pay_stub.kuendige_aufrufe.append(acc)
-    return dict(stripe_pay_stub.kuendige_ergebnis)
-
-
-stripe_pay_stub.kuendige_abo = _kuendige_abo
-sys.modules["app.stripe_pay"] = stripe_pay_stub
 
 # argon2-Stub, damit das ECHTE userauth-Modul importierbar ist.
 argon2_stub = types.ModuleType("argon2")
@@ -305,7 +259,7 @@ sys.modules["argon2.exceptions"] = argon2_exc
 import app  # noqa: E402  (leeres Paket-__init__)
 from app import kontoloeschung, userauth  # noqa: E402
 
-# Für die S1-Tests (Stripe-Abbruch bei Kontolöschung) zusätzlich das ECHTE
+# Für die Löschlogik-Tests (LoeschungTests) zusätzlich das ECHTE
 # app.services laden – oben ist es als Stub registriert, weil die kontoloeschung-Tests
 # ihn brauchen. Danach den Stub in sys.modules UND als Paket-Attribut wiederherstellen:
 # `from . import services` in kontoloeschung.py liest sonst das echte Modul.
@@ -500,123 +454,59 @@ class BestaetigungTests(_Basis):
         self.assertEqual(self.db.updates, [1])                # kein Replay möglich
 
 
-class StripeLoeschungTests(_Basis):
-    """S1 (Sicherheitsprüfung AND-24): Kontolöschung beendet das Stripe-Abo.
-
-    Getestet wird das ECHTE services.loesche_eigenes_konto (gemeinsamer Pfad von
-    In-App POST /konto/loeschen und Web-Bestätigungslink); nur app.db und
-    app.stripe_pay sind gestubbt."""
+class LoeschungTests(_Basis):
+    """Echtes services.loesche_eigenes_konto (gemeinsamer Pfad von In-App
+    POST /konto/loeschen und Web-Bestätigungslink); nur app.db ist gestubbt."""
 
     def setUp(self):
         super().setUp()
         self.sdb = ServicesFakeDb()
         _db_holder["db"] = self.sdb
-        FakeSubscription.deleted.clear()
-        FakeSubscription.fehler = None
-        stripe_pay_stub.kuendige_aufrufe.clear()
-        stripe_pay_stub.kuendige_ergebnis = {"ok": True, "stripe": True}
         userauth.current_user.set(self.sdb.uid)
         userauth.current_account.set(7)
 
     def _konto_geloescht(self) -> bool:
         return any("DELETE FROM account WHERE id" in sql for sql, _ in self.sdb.executes)
 
-    async def test_letzter_nutzer_beendet_stripe_abo_sofort(self):
-        # Fall A: Haushalt wird komplett gelöscht → Subscription.delete (sofort), denn
-        # nach dem Löschen der account-Zeile kann niemand mehr das Periodenende
-        # auswerten und invoice.paid würde still weiter abbuchen.
+    async def test_letzter_nutzer_loescht_ganzen_haushalt(self):
         res = await services_echt.loesche_eigenes_konto("selbst")
         self.assertEqual(res, {"geloescht": True, "modus": "haushalt"})
-        self.assertEqual(FakeSubscription.deleted, ["sub_test123"])
-        self.assertEqual(stripe_pay_stub.kuendige_aufrufe, [])
         self.assertTrue(self._konto_geloescht())              # account-Zeile weg
         self.assertTrue(all(self.sdb.bypass_aufrufe))         # FORCE RLS → bypass
 
-    async def test_haushalt_modus_beendet_stripe_abo_sofort(self):
-        self.sdb.mitglieder = [42, 43]                        # Eigentümer löscht Haushalt
+    async def test_haushalt_modus_durch_eigentuemer(self):
+        self.sdb.mitglieder = [42, 43]
         res = await services_echt.loesche_eigenes_konto("haushalt")
         self.assertEqual(res, {"geloescht": True, "modus": "haushalt"})
-        self.assertEqual(FakeSubscription.deleted, ["sub_test123"])
-        self.assertEqual(stripe_pay_stub.kuendige_aufrufe, [])
         self.assertTrue(self._konto_geloescht())
 
-    async def test_loeschung_laeuft_trotz_stripe_fehler_durch(self):
-        # Stripe-Ausfall darf die Löschung nie blockieren (wie in kuendige_abo) –
-        # der Fehler wird nur protokolliert (log.error mit Sub-ID als Spur).
-        FakeSubscription.fehler = RuntimeError("stripe nicht erreichbar")
-        res = await services_echt.loesche_eigenes_konto("selbst")
-        self.assertEqual(res, {"geloescht": True, "modus": "haushalt"})
-        self.assertEqual(FakeSubscription.deleted, [])
-        self.assertTrue(self._konto_geloescht())
-
-    async def test_eigentuemer_geht_haushalt_bleibt_kuendigt_zum_periodenende(self):
-        # Fall B: Eigentümer/Zahler geht, Haushalt bleibt → kuendige_abo
-        # (cancel_at_period_end): die bezahlte Periode bleibt dem Haushalt, es folgt
-        # keine invoice.paid mehr, die abo_gekuendigt zurücksetzen und die Karte des
-        # Ausgeschiedenen dauerhaft weiterbelasten könnte.
-        # D1 (AND-38 / AND-75): stripe_customer_id wird genullt, stripe_subscription_id bleibt.
+    async def test_eigentuemer_geht_haushalt_bleibt_neuer_eigentuemer(self):
         self.sdb.mitglieder = [42, 43]
         res = await services_echt.loesche_eigenes_konto("selbst")
         self.assertEqual(res, {"geloescht": True, "modus": "selbst"})
-        self.assertEqual(FakeSubscription.deleted, [])        # NICHT sofort beendet
-        self.assertEqual(stripe_pay_stub.kuendige_aufrufe, [7])
-        self.assertTrue(any("abo_gekuendigt = true" in sql for sql, _ in self.sdb.executes))
-        self.assertTrue(any("stripe_customer_id = NULL" in sql for sql, _ in self.sdb.executes))
-        self.assertFalse(any("stripe_subscription_id" in sql for sql, _ in self.sdb.executes))
-        self.assertIsNone(self.sdb.cust_id)
-        self.assertEqual(self.sdb.sub_id, "sub_test123")
+        self.assertFalse(self._konto_geloescht())
+        self.assertTrue(any("SET rolle='owner'" in sql and args[1] == 43
+                            for sql, args in self.sdb.executes))
 
-    async def test_fall_b_stripe_customer_id_genullt_subscription_unveraendert(self):
-        # D1 (AND-38 / AND-75): Fall B (Eigentümer geht, Haushalt bleibt).
-        # Nach Fall B ist stripe_customer_id leer (None), stripe_subscription_id unverändert.
-        self.sdb.mitglieder = [42, 43]
-        self.assertEqual(self.sdb.cust_id, "cus_test123")
-        self.assertEqual(self.sdb.sub_id, "sub_test123")
-        res = await services_echt.loesche_eigenes_konto("selbst")
-        self.assertEqual(res, {"geloescht": True, "modus": "selbst"})
-        self.assertIsNone(self.sdb.cust_id, "stripe_customer_id muss nach Fall B leer sein")
-        self.assertEqual(self.sdb.sub_id, "sub_test123", "stripe_subscription_id muss unverändert bleiben")
-        update_sqls = [sql for sql, _ in self.sdb.executes if "UPDATE account" in sql]
-        self.assertTrue(any("stripe_customer_id = NULL" in s for s in update_sqls))
-        self.assertFalse(any("stripe_subscription_id" in s for s in update_sqls))
-
-    async def test_stripe_kuendigung_fehlgeschlagen_loeschung_trotzdem(self):
-        self.sdb.mitglieder = [42, 43]
-        stripe_pay_stub.kuendige_ergebnis = {"ok": True, "stripe": False}
-        res = await services_echt.loesche_eigenes_konto("selbst")
-        self.assertEqual(res, {"geloescht": True, "modus": "selbst"})
-
-    async def test_mitglied_geht_haushalt_bleibt_stripe_unberuehrt(self):
-        # Nicht-Eigentümer geht: Der Zahler bleibt im Haushalt → Abo läuft unverändert.
+    async def test_mitglied_geht_haushalt_bleibt(self):
         self.sdb.rolle = "mitglied"
-        self.sdb.mitglieder = [41, 42]                        # 41 bleibt (wird Eigentümer)
+        self.sdb.mitglieder = [41, 42]
         res = await services_echt.loesche_eigenes_konto("selbst")
         self.assertEqual(res, {"geloescht": True, "modus": "selbst"})
-        self.assertEqual(FakeSubscription.deleted, [])
-        self.assertEqual(stripe_pay_stub.kuendige_aufrufe, [])
+        self.assertFalse(self._konto_geloescht())
+        self.assertFalse(any("SET rolle='owner'" in sql for sql, _ in self.sdb.executes))
 
-    async def test_ohne_stripe_abo_passiert_nichts(self):
-        self.sdb.sub_id = None                                # z. B. Gratis-/Beta-Konto
-        res = await services_echt.loesche_eigenes_konto("selbst")
-        self.assertEqual(res, {"geloescht": True, "modus": "haushalt"})
-        self.assertEqual(FakeSubscription.deleted, [])
-        self.assertEqual(stripe_pay_stub.kuendige_aufrufe, [])
-
-    async def test_haushalt_modus_ohne_eigentuemer_fasst_stripe_nicht_an(self):
-        # modus='haushalt' wird ohne Eigentümer abgelehnt – der Stripe-Vorab-Check
-        # spiegelt den Guard und darf das Abo dann nicht anfassen.
+    async def test_haushalt_modus_ohne_eigentuemer_abgelehnt(self):
         self.sdb.rolle = "mitglied"
         self.sdb.mitglieder = [41, 42]
         res = await services_echt.loesche_eigenes_konto("haushalt")
         self.assertIn("error", res)
-        self.assertEqual(FakeSubscription.deleted, [])
-        self.assertEqual(stripe_pay_stub.kuendige_aufrufe, [])
+        self.assertFalse(self._konto_geloescht())
 
     async def test_nicht_angemeldet_wird_abgewiesen(self):
         userauth.current_user.set(None)
         res = await services_echt.loesche_eigenes_konto("selbst")
         self.assertEqual(res, {"error": "nicht angemeldet"})
-        self.assertEqual(FakeSubscription.deleted, [])
 
 
 class ZweckbindungResetTests(_Basis):
@@ -629,19 +519,6 @@ class ZweckbindungResetTests(_Basis):
     async def test_passwort_reset_ohne_token_abgewiesen(self):
         res = await userauth.passwort_reset_ausfuehren("", "neuespasswort1")
         self.assertEqual(res, {"error": "Ungültiger Link."})
-
-
-class D3AboVerfallshinweisTests(_Basis):
-    """D3 (Sicherheitsprüfung AND-38 / AND-75): Hinweis auf sofortiges Abo-Ende
-    und Verfall bezahlter Restlaufzeit."""
-
-    def test_loesch_mail_enthaelt_abo_verfallshinweis(self):
-        mail_src = (REPO / "app" / "mailer.py").read_text(encoding="utf-8")
-        self.assertIn("Ein laufendes Abo endet sofort; die bereits bezahlte Restlaufzeit verfällt.", mail_src)
-
-    def test_konto_loeschen_komponente_enthaelt_abo_verfallshinweis(self):
-        jsx_src = (REPO / "koch-web" / "src" / "components" / "KontoLoeschen.jsx").read_text(encoding="utf-8")
-        self.assertIn("Ein laufendes Abo endet sofort; die bereits bezahlte Restlaufzeit verfällt.", jsx_src)
 
 
 if __name__ == "__main__":

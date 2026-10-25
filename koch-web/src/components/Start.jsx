@@ -428,12 +428,12 @@ export function Generator({ notify, openRezept, vorratAktiv = true, onClose, ini
             <p className="mt-1 text-[11px] text-ink/45">Mehrfachauswahl möglich. Keine Auswahl = ohne Angebote.</p>
           </div>
         )}
-        {/* Bild ist optional und zählt aufs monatliche Bild-Kontingent – pro Rezept abwählbar. */}
+        {/* Bild ist optional – pro Rezept abwählbar. */}
         <label className="flex cursor-pointer items-start gap-2 text-sm">
           <input type="checkbox" checked={bildWunsch} onChange={(e) => setBildWunsch(e.target.checked)} className="mt-0.5 h-4 w-4 accent-terracotta" />
           <span>
             <span className="inline-flex items-center gap-1"><Icon name="image" size={16} /> Bild zum Rezept erzeugen</span>
-            <span className="block text-[11px] text-ink/45">Zählt auf dein monatliches Bild-Kontingent. Du kannst jederzeit später eines erzeugen oder ein eigenes Foto hochladen.</span>
+            <span className="block text-[11px] text-ink/45">Du kannst auch jederzeit später eines erzeugen oder ein eigenes Foto hochladen.</span>
           </span>
         </label>
         <p className="text-xs text-ink/45">Heutige Küchengeräte und die Vorlieben/Allergien des Haushalts werden immer beachtet.</p>

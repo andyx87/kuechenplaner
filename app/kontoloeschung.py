@@ -1,14 +1,14 @@
-"""Öffentliche Kontolöschung per Bestätigungslink (Google Play + DSGVO Art. 17).
+"""Öffentliche Kontolöschung per Bestätigungslink (DSGVO Art. 17).
 
-Google Play verlangt für Apps mit Konten neben dem In-App-Weg (Mehr → Konto löschen,
-POST /konto/loeschen) eine öffentliche Web-Adresse, über die die Kontolöschung
-angefordert werden kann: <APP_BASE_URL>/konto-loeschen (ohne Anmeldung).
+Neben dem In-App-Weg (Mehr → Konto löschen, POST /konto/loeschen) gibt es eine
+öffentliche Web-Adresse, über die die Kontolöschung angefordert werden kann:
+<APP_BASE_URL>/konto-loeschen (ohne Anmeldung).
 
 Ablauf – bewusst zweistufig, die Löschung ist NICHT umkehrbar:
   1. Formular → POST /auth/konto-loeschen-anfordern: legt einen einmaligen,
      1 Stunde gültigen Token an und mailt den Bestätigungslink. Die Antwort ist
      neutral und verrät nicht, ob zur E-Mail ein Konto existiert (F7-Linie,
-     wie bei Kündigung und Passwort-Reset).
+     wie beim Passwort-Reset).
   2. Link-Klick → POST /auth/konto-loeschen: führt die Löschung mit derselben
      Logik wie POST /konto/loeschen (Modus 'selbst') aus.
 
@@ -155,6 +155,5 @@ async def bestaetigen(token: str) -> dict:
         "geloescht": True,
         # Bewusst neutral: bestätigt keine Konto-Details.
         "hinweis": ("Dein Topfplan-Konto wurde gelöscht. Du erhältst eine Bestätigung "
-                    "per E-Mail. Nachweise, die wir gesetzlich aufbewahren müssen "
-                    "(z. B. Kündigungsprotokoll, Buchungsbelege), bleiben erhalten."),
+                    "per E-Mail."),
     }

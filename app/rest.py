@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import base64
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 
-from . import adminstats, angebote_import, audit, bilder, billing, chat, config, gcp_billing, guided, itrk, kontoloeschung, kuendigung, ratelimit, rezept_adapt, rezept_link, rezept_suche, services, stripe_pay, transkription, userauth, vision
+from . import adminstats, angebote_import, audit, bilder, chat, config, guided, kontoloeschung, ratelimit, rezept_adapt, rezept_link, rezept_suche, services, transkription, userauth, vision
 
 router = APIRouter(prefix="/api")
 
@@ -45,74 +45,10 @@ async def auth_register(body: dict, request: Request):
     ip = ratelimit.client_ip(request)
     ratelimit.pruefe(f"register:ip:{ip}", limit=5, fenster_s=3600)  # F6: Registrierungs-Flut bremsen
     res = await userauth.register(body.get("email", ""), body.get("password", ""), body.get("name", ""),
-                                  bootstrap_token=body.get("bootstrap_token"),
-                                  beta=body.get("beta"))
+                                  bootstrap_token=body.get("bootstrap_token"))
     if res.get("error"):
         raise HTTPException(400, res["error"])
     return res
-
-
-@router.post("/auth/kuendigung")
-async def auth_kuendigung(body: dict, request: Request, background_tasks: BackgroundTasks):
-    """Kündigungserklärung über den öffentlichen Kündigungsbutton (§ 312k BGB), Stufe 1.
-
-    Bewusst OHNE Auth: die Vorschrift verlangt, dass der Button ohne Anmeldung erreichbar ist.
-    Die Erklärung wird sofort protokolliert (Zugang/Frist gewahrt); gekündigt wird aber erst
-    nach dem Klick auf den Bestätigungslink aus der Mail (Stufe 2, S-1). Die Antwort ist für
-    alle E-Mails identisch und enthält keine kontoabhängigen Angaben (S-2); Kontosuche und
-    Mailversand laufen entkoppelt in BackgroundTasks, damit auch die Antwortzeit nichts
-    verrät. Rate-Limits je IP und je E-Mail bremsen Flut/Bombing (s. app/kuendigung.py)."""
-    ip = ratelimit.client_ip(request)
-    ratelimit.pruefe(f"kuendigung:ip:{ip}", limit=5, fenster_s=3600)
-    raw_email = body.get("email") if isinstance(body, dict) else None
-    email = raw_email.strip().lower() if isinstance(raw_email, str) else ""
-    # K-2: Rate-Limit-Schlüssel erst nach Formatprüfung bilden und hashen. Eine
-    # 1-MB-„E-Mail" erzeugt keinen Bucket; Speicherverbrauch bleibt begrenzt.
-    if "@" in email and "." in email and len(email) <= 254:
-        # M-1 (AND-96): kein direktes hashlib mehr – der Import ist mit #47 entfallen,
-        # ratelimit.email_schluessel() hasht (sha256[:32]) und ist die gemeinsame Stelle.
-        key = "kuendigung:email:" + ratelimit.email_schluessel(email)
-        ratelimit.pruefe(key, limit=3, fenster_s=3600)
-    res = await kuendigung.annehmen(body if isinstance(body, dict) else {}, ip=ip, background=background_tasks)
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.post("/auth/kuendigung/bestaetigen")
-async def auth_kuendigung_bestaetigen(body: dict, request: Request):
-    """Stufe 2 der öffentlichen Kündigung: führt die Kündigung aus – NIE allein auf Basis
-    einer E-Mail-Eingabe, sondern nur mit dem Bestätigungstoken aus der Link-Mail. Das
-    Zielkonto kommt aus dem Token, nicht aus dem Request (S-1, s. app/kuendigung.py)."""
-    ip = ratelimit.client_ip(request)
-    ratelimit.pruefe(f"kuendigung-confirm:ip:{ip}", limit=10, fenster_s=900)
-    raw_token = body.get("token") if isinstance(body, dict) else None
-    token = raw_token.strip() if isinstance(raw_token, str) else ""
-    res = await kuendigung.bestaetigen(token)
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.post("/konto/abo-kuendigen", dependencies=[Depends(auth)])
-async def konto_abo_kuendigen():
-    """Kündigung aus der angemeldeten App heraus (zusätzlich zum öffentlichen Button).
-    Kündigt das Stripe-Abo zum Ende der bezahlten Periode."""
-    acc = userauth.current_account.get() or 1
-    res = await stripe_pay.kuendige_abo(acc)
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.get("/auth/beta/{slug}")
-async def auth_beta_info(slug: str):
-    """Öffentlicher Status eines Beta-Anmeldelinks (/beta/<slug>): Name, freie Plätze, Trial-Länge.
-    404 = Kanal unbekannt oder abgeschaltet; die Seite zeigt dann die normale Registrierung."""
-    info = await userauth.beta_info(slug)
-    if not info:
-        raise HTTPException(404, "Kein Beta-Kanal")
-    return info
 
 
 @router.get("/auth/einladung/{token}")
@@ -173,8 +109,8 @@ async def auth_passwort_reset(body: dict):
 
 @router.post("/auth/konto-loeschen-anfordern")
 async def auth_konto_loeschen_anfordern(body: dict, request: Request):
-    """Öffentliche Anforderung der Kontolöschung (Google Play verlangt neben dem
-    In-App-Weg eine Web-Adresse ohne Anmeldung). Mailt einen Bestätigungslink;
+    """Öffentliche Anforderung der Kontolöschung (Web-Adresse ohne Anmeldung, zusätzlich
+    zum In-App-Weg). Mailt einen Bestätigungslink;
     gelöscht wird erst nach dem Klick (s. app/kontoloeschung.py). Antwort bewusst
     neutral – keine Auskunft, ob die E-Mail ein Konto hat. Rate-Limit wie beim
     Passwort-Reset (Mail-Flooding / Enumeration bremsen)."""
@@ -212,50 +148,6 @@ async def auth_logout(authorization: str | None = Header(default=None)):
     return await userauth.logout(_token(authorization))
 
 
-# ---------- IT-Recht Kanzlei: Rechtstexte-Schnittstelle (öffentlich, Token im XML) ----------
-
-# S-6 (AND-22/AND-33): /api/itrk gehärtet. Steckt das Token im Header
-# (Authorization: Bearer …) oder im Query (?token=…), wird es VOR dem Lesen des
-# Bodys geprüft (401 statt Parse-Aufwand); der LTI-Standardweg mit dem Token im
-# XML-Body bleibt unverändert unterstützt. In jedem Fall gilt: Content-Length
-# vorab gegen 256 KB prüfen (413), Streaming-Lesen mit harter Grenze und
-# IP-Rate-Limit, bevor XML geparst wird (s. app/itrk.py).
-@router.post("/itrk")
-async def itrk_push(request: Request):
-    kopf_token = (_token(request.headers.get("authorization"))
-                  or request.query_params.get("token"))
-    if kopf_token is not None and not itrk.token_ok(kopf_token):
-        raise HTTPException(401, "Ungültiges Token")
-    zu_gross = f"Body zu groß (max. {itrk.MAX_BODY_BYTES // 1024} KB)"
-    if not itrk.content_length_ok(request.headers.get("content-length")):
-        raise HTTPException(413, zu_gross)
-    ip = ratelimit.client_ip(request)
-    ratelimit.pruefe(f"itrk:ip:{ip}", limit=30, fenster_s=900)
-    body = await itrk.body_lesen(request.stream())
-    if body is None:
-        raise HTTPException(413, zu_gross)
-    xml = await itrk.handle(body)
-    return Response(content=xml, media_type="text/xml; charset=utf-8")
-
-
-@router.get("/rechtstext/{typ}")
-async def rechtstext_get(typ: str):
-    d = await itrk.get_rechtstext(typ)
-    if not d:
-        raise HTTPException(404, "Rechtstext nicht verfügbar")
-    if d.get("aktualisiert"):
-        d["aktualisiert"] = d["aktualisiert"].isoformat()
-    return d
-
-
-@router.get("/rechtstexte")
-async def rechtstexte_liste():
-    rows = await itrk.liste()
-    for r in rows:
-        if r.get("aktualisiert"):
-            r["aktualisiert"] = r["aktualisiert"].isoformat()
-    return rows
-
 
 @router.get("/auth/me")
 async def auth_me(authorization: str | None = Header(default=None)):
@@ -273,7 +165,7 @@ async def admin_auth(ctx=Depends(auth)):
 
 
 async def support_auth(ctx=Depends(auth)):
-    """Wie auth, aber für Super-Admin ODER Support (z.B. Guthaben aufladen)."""
+    """Wie auth, aber für Super-Admin ODER Support."""
     if not await userauth.ist_admin_oder_support(ctx["user_id"]):
         raise HTTPException(status_code=403, detail="nur Admin/Support")
     return ctx
@@ -285,41 +177,6 @@ async def ki_auth(ctx=Depends(auth)):
     if not await userauth.darf_ki(ctx["user_id"], ctx["account_id"]):
         raise HTTPException(status_code=403, detail="KI-Funktionen sind für dich deaktiviert.")
     return ctx
-
-
-@router.get("/abrechnung", dependencies=[Depends(auth)])
-async def abrechnung(von: str | None = None, bis: str | None = None,
-                     zweck: str | None = None, person_id: int | None = None):
-    zwecke = [z for z in (zweck or "").split(",") if z] or None
-    return await billing.abrechnung(von=von, bis=bis, zwecke=zwecke, person_id=person_id)
-
-
-@router.get("/abrechnung/protokoll", dependencies=[Depends(auth)])
-async def abrechnung_protokoll(von: str | None = None, bis: str | None = None,
-                               zweck: str | None = None, person_id: int | None = None,
-                               limit: int = 50, offset: int = 0):
-    zwecke = [z for z in (zweck or "").split(",") if z] or None
-    return await billing.nutzung_protokoll(
-        von, bis, zwecke, person_id, min(max(int(limit), 1), 200), max(int(offset), 0))
-
-
-@router.get("/abrechnung/export.csv", dependencies=[Depends(auth)])
-async def abrechnung_export(von: str | None = None, bis: str | None = None,
-                            zweck: str | None = None, person_id: int | None = None):
-    import csv as _csv
-    import io as _io
-    zwecke = [z for z in (zweck or "").split(",") if z] or None
-    data = await billing.nutzung_protokoll(von, bis, zwecke, person_id, 100000, 0)
-    buf = _io.StringIO()
-    w = _csv.writer(buf)
-    w.writerow(["Zeitpunkt", "Funktion", "Modell", "Person",
-                "Prompt-Token", "Completion-Token", "Gesamt-Token", "Kosten_EUR"])
-    for r in data["rows"]:
-        w.writerow([r["erstellt"], r["zweck"], r["modell"], r["person"] or "",
-                    r["prompt_tokens"], r["completion_tokens"], r["total_tokens"],
-                    f'{r["kosten_cents"] / 100:.4f}'])
-    return Response(content=buf.getvalue(), media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": "attachment; filename=verbrauch.csv"})
 
 
 @router.get("/einladungen", dependencies=[Depends(auth)])
@@ -340,115 +197,6 @@ async def einladung_stornieren(eid: int):
     return await userauth.cancel_einladung(eid)
 
 
-@router.get("/konto/modell-stufe", dependencies=[Depends(auth)])
-async def modell_stufe_get():
-    return await billing.get_modell_stufe()
-
-
-@router.put("/konto/modell-stufe", dependencies=[Depends(auth)])
-async def modell_stufe_put(body: dict):
-    return await billing.set_modell_stufe(body.get("stufe"))
-
-
-@router.get("/konto/bild-stufe", dependencies=[Depends(auth)])
-async def bild_stufe_get():
-    return await billing.get_bild_stufe()
-
-
-@router.put("/konto/bild-stufe", dependencies=[Depends(auth)])
-async def bild_stufe_put(body: dict):
-    return await billing.set_bild_stufe(body.get("stufe"))
-
-
-@router.get("/konto/abo-typ", dependencies=[Depends(auth)])
-async def abo_typ_get():
-    return await billing.get_abo_typ()
-
-
-@router.put("/konto/abo-typ", dependencies=[Depends(auth)])
-async def abo_typ_put(body: dict):
-    return await billing.set_abo_typ(body.get("abo_typ"))
-
-
-@router.get("/konto/tarif", dependencies=[Depends(auth)])
-async def konto_tarif_get():
-    """Aktueller Tarif + Live-Limitstatus (Stunde/Woche/Monat) des Kontos."""
-    return await billing.get_tarif()
-
-
-@router.put("/konto/tarif", dependencies=[Depends(auth)])
-async def konto_tarif_put(body: dict):
-    res = await billing.set_tarif(body.get("code"))
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.put("/konto/payg-overage", dependencies=[Depends(auth)])
-async def konto_payg_overage_put(body: dict):
-    """Pay-as-you-go-Überlauf an/aus (bei Limit weiter aus Guthaben, bis Monatswechsel)."""
-    return await billing.set_payg_overage(bool(body.get("an")))
-
-
-@router.post("/admin/guthaben-einladung")
-async def admin_guthaben_einladung(body: dict, ctx=Depends(admin_auth)):
-    """Super-Admin: einmalig gültigen Guthaben-Einladungscode mit variablem Betrag erzeugen."""
-    res = await billing.create_guthaben_einladung(body.get("betrag_cents", 0), ctx["user_id"])
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    # Erst NACH erfolgreicher Erzeugung protokollieren – sonst würde ein fehlgeschlagener
-    # Versuch fälschlich als erfolgreiche Admin-Aktion im Audit-Log erscheinen.
-    # Der Einladungscode selbst ist ein Bearer-Gutschein (wie ein Secret) und wird NICHT geloggt.
-    audit.log_admin_action(ctx, "guthaben_einladung.erzeugen", "konto:" + str(ctx["account_id"]),
-                            neu={"betrag_cents": body.get("betrag_cents", 0)})
-    return res
-
-
-@router.post("/guthaben/einloesen", dependencies=[Depends(auth)])
-async def guthaben_einloesen(body: dict):
-    """Löst einen Guthaben-Einladungscode für das aktive Konto ein (einmalig)."""
-    res = await billing.einloese_guthaben_einladung(body.get("code"))
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.post("/guthaben/checkout")
-async def guthaben_checkout(body: dict, request: Request, ctx=Depends(auth)):
-    """Startet eine Stripe-Aufladung; gibt die Bezahl-URL zurück."""
-    origin = request.headers.get("origin") or request.headers.get("referer") or ""
-    res = await stripe_pay.checkout(ctx["account_id"], int(body.get("betrag_cents") or 0), origin)
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.post("/abo/checkout")
-async def abo_checkout(request: Request, ctx=Depends(auth)):
-    """Startet das wiederkehrende Topfplan-Abo (Stripe Subscription-Checkout)."""
-    origin = request.headers.get("origin") or request.headers.get("referer") or ""
-    res = await stripe_pay.checkout_abo(ctx["account_id"], origin)
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.post("/credits/checkout")
-async def credits_checkout(request: Request, ctx=Depends(auth)):
-    """Startet den einmaligen Kauf eines Foto-Credit-Packs (Stripe Checkout)."""
-    origin = request.headers.get("origin") or request.headers.get("referer") or ""
-    res = await stripe_pay.checkout_credits(ctx["account_id"], origin)
-    if res.get("error"):
-        raise HTTPException(400, res["error"])
-    return res
-
-
-@router.get("/konto/kontingent")
-async def konto_kontingent(ctx=Depends(auth)):
-    """v4-Kontingent-Status: Tarif (gratis/abo), Monatsnutzung + Limits, Bild-Credits."""
-    return await billing.kontingent_status_konto(ctx["account_id"])
-
-
 @router.get("/konto/vorrat-modus")
 async def vorrat_modus_get(ctx=Depends(auth)):
     """Vorrat-Modus: 'voll' (App-Vorrat) oder 'light' (Freitext bei der Generierung)."""
@@ -458,12 +206,6 @@ async def vorrat_modus_get(ctx=Depends(auth)):
 @router.put("/konto/vorrat-modus")
 async def vorrat_modus_put(body: dict, ctx=Depends(auth)):
     return await services.set_vorrat_modus(ctx["account_id"], (body or {}).get("modus"))
-
-
-@router.post("/guthaben/checkout-bestaetigen")
-async def guthaben_checkout_bestaetigen(body: dict, ctx=Depends(auth)):
-    """Prüft eine zurückgekehrte Stripe-Session und schreibt das Guthaben gut (idempotent)."""
-    return await stripe_pay.bestaetige(body.get("session_id"), ctx["account_id"])
 
 
 @router.post("/konto/loeschen")
@@ -493,75 +235,6 @@ async def konto_export(ctx=Depends(auth)):
     )
 
 
-@router.post("/stripe/webhook")
-async def stripe_webhook(request: Request):
-    """Stripe-Webhook: server-seitige, signaturgeprüfte Verbuchung bezahlter Aufladungen
-    – unabhängig vom Redirect. Öffentlich; Sicherheit ausschließlich über die
-    Stripe-Signatur (STRIPE_WEBHOOK_SECRET)."""
-    payload = await request.body()
-    sig = request.headers.get("stripe-signature")
-    try:
-        return await stripe_pay.handle_webhook(payload, sig)
-    except ValueError:
-        # Ungültige Signatur -> 400 (Stripe wiederholt einen 4xx nicht endlos)
-        raise HTTPException(400, "ungültige Signatur")
-    except Exception as e:
-        # Interner Fehler -> 500, damit Stripe den Webhook später erneut zustellt
-        import logging
-        logging.getLogger("koch").warning("stripe webhook Fehler: %s", e)
-        raise HTTPException(500, "Webhook-Verarbeitung fehlgeschlagen")
-
-
-@router.get("/tarife", dependencies=[Depends(auth)])
-async def tarife_get():
-    return await billing.list_tarife()
-
-
-@router.get("/preise", dependencies=[Depends(auth)])
-async def preise_get():
-    """Preisliste für die Anzeige: Gratis-/Abo-Kontingente, Abopreis, Foto-Pack.
-    EINE Quelle für alle Preis- und Kontingenttexte im Frontend – dort steht kein
-    Betrag mehr fest im Code. Pflege über den Admin-Bereich (Tarife + Plattform-Preise)."""
-    return await billing.preisliste()
-
-
-@router.get("/admin/tarife", dependencies=[Depends(admin_auth)])
-async def admin_tarife_get():
-    return await billing.admin_list_tarife()
-
-
-@router.put("/admin/tarife")
-async def admin_tarife_put(body: dict, ctx=Depends(admin_auth)):
-    try:
-        res = await billing.admin_set_tarife(body.get("tarife") or [])
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    audit.log_admin_action(ctx, "tarife.setzen", "tarife", neu=body.get("tarife") or [])
-    return res
-
-
-@router.get("/admin/preise", dependencies=[Depends(admin_auth)])
-async def admin_preise_get():
-    return await billing.get_preise()
-
-
-@router.put("/admin/preise")
-async def admin_preise_put(body: dict, ctx=Depends(admin_auth)):
-    alt = await billing.get_preise()
-    res = await billing.set_preise(
-        int(body.get("abo_einzel_cents", 299)),
-        int(body.get("abo_mehrere_cents", 449)),
-        float(body.get("api_markup_prozent", 25)),
-        body.get("bild_schnell_cents"),
-        body.get("bild_standard_cents"),
-        overage_markup_prozent=body.get("overage_markup_prozent"),
-        foto_pack_cents=body.get("foto_pack_cents"),
-        foto_pack_credits=body.get("foto_pack_credits"),
-    )
-    audit.log_admin_action(ctx, "preise.setzen", "preise", alt=alt, neu=body)
-    return res
-
-
 @router.get("/admin/users", dependencies=[Depends(support_auth)])
 async def admin_users_get(q: str | None = None, limit: int = 25, offset: int = 0, sort: str = "id_desc"):
     """Paginierte/suchbare Nutzerliste fürs Backoffice (skaliert bei vielen Nutzern)."""
@@ -570,14 +243,8 @@ async def admin_users_get(q: str | None = None, limit: int = 25, offset: int = 0
 
 @router.get("/admin/kennzahlen", dependencies=[Depends(support_auth)])
 async def admin_kennzahlen_get():
-    """KPI-Übersicht fürs Admin-Dashboard (Nutzer, Abos, MRR, KI-Nutzung)."""
+    """KPI-Übersicht fürs Admin-Dashboard (Nutzer, Haushalte, Aktivität, Rezepte)."""
     return await adminstats.kennzahlen()
-
-
-@router.get("/admin/cloud-kosten", dependencies=[Depends(support_auth)])
-async def admin_cloud_kosten_get():
-    """Echte Google-Cloud-Projektkosten (Billing-Export via BigQuery)."""
-    return await gcp_billing.cloud_kosten()
 
 
 @router.put("/admin/users/{uid}/angebote-upload")
@@ -620,19 +287,7 @@ async def admin_user_aktiv_put(uid: int, body: dict, ctx=Depends(admin_auth)):
     return res
 
 
-@router.post("/admin/users/{uid}/guthaben")
-async def admin_user_guthaben_post(uid: int, body: dict, ctx=Depends(support_auth)):
-    """Admin/Support lädt Guthaben des Nutzer-Kontos auf (betrag_cents, auch negativ)."""
-    acc = await userauth.account_fuer_user(uid)
-    if not acc:
-        raise HTTPException(404, "Konto zum Nutzer nicht gefunden")
-    res = await billing.guthaben_aufladen(acc, int(body.get("betrag_cents", 0)))
-    audit.log_admin_action(ctx, "user.guthaben.aufladen", "user:" + str(uid),
-                            neu={"konto": acc, "betrag_cents": int(body.get("betrag_cents", 0))})
-    return res
-
-
-# ---------- Bugreports (Beta) ----------
+# ---------- Bugreports ----------
 
 @router.post("/bugreport", dependencies=[Depends(auth)])
 async def bugreport_create(body: dict, user_agent: str = Header(default="")):
@@ -653,14 +308,6 @@ async def bugreport_status(bid: int, body: dict, ctx=Depends(support_auth)):
     audit.log_admin_action(ctx, "bugreport.status.setzen", "bugreport:" + str(bid),
                             neu={"status": body.get("status", "offen")})
     return res
-
-
-@router.get("/me/bugreport-belohnungen", dependencies=[Depends(auth)])
-async def bugreport_belohnungen():
-    """Beim (nächsten) Login aufgerufen: liefert die Dankeschön-Gutschriften des
-    Kontos fürs Danke-Popup. Read-only – die Gutschrift selbst passiert beim Erledigen
-    des Bugreports; das Frontend dedupliziert die Anzeige via localStorage."""
-    return await services.bugreport_belohnungen()
 
 
 # ---------- Zutaten-Kuratierung (Super-Admin) ----------
@@ -1243,19 +890,17 @@ async def rezept_bild_upload(rid: int, datei: UploadFile = File(...)):
 
 @router.post("/rezepte/{rid}/bild/generieren", dependencies=[Depends(ki_auth)])
 async def rezept_bild_generieren(rid: int):
-    """Bild per gemini-3.1-flash-image erzeugen (tokenbasiert) und beim Rezept speichern."""
+    """Bild per KI erzeugen und beim Rezept speichern."""
     r = await services.get_rezept(rid)
     if r is None:
         raise HTTPException(404, "Rezept nicht gefunden")
-    box = billing.beginne_kostenerfassung()
     data_url = await bilder.generiere_rezeptbild(r["name"], r.get("beschreibung"), r.get("zutaten"))
     if not data_url:
         raise HTTPException(502, "Bildgenerierung derzeit nicht verfügbar")
     res = await services.set_rezept_bild(rid, data_url)
     if res.get("error"):
         raise HTTPException(404, res["error"])
-    return {**res, "bild": data_url,
-            "kosten_cents": float(box["cents"]), "guthaben_cents": await billing.guthaben_jetzt()}
+    return {**res, "bild": data_url}
 
 
 @router.post("/rezepte/{rid}/guided", dependencies=[Depends(ki_auth)])
@@ -1547,11 +1192,8 @@ async def angebote_import_datei(
     Prospekt mit speichern (etwas teurer, da Vision pro Seite). Gibt job_id zurueck."""
     if not await userauth.darf_angebote_upload(ctx["user_id"]):
         raise HTTPException(403, "Angebots-Upload für dieses Konto nicht freigeschaltet")
-    # Seit der Upload für alle offen ist (migration_angebote_upload_default.sql), braucht der
-    # teuerste Zweck (1 Modellaufruf je Seite, bis 24 Seiten) eine Obergrenze je Nutzer:
-    # 10 Prospekte/Tag decken jeden realen Haushalt (4-5/WOCHE ist Vielnutzung) und begrenzen
-    # Missbrauch auf ~14 ct/Tag. Das Kontingent-Modell zählt diesen Zweck noch nicht
-    # (s. DOKU §13, Zählung erst nach Umstellung auf Nutzeraktionen).
+    # Der aufwendigste KI-Zweck (1 Modellaufruf je Seite, bis 24 Seiten) bekommt eine
+    # Obergrenze je Nutzer: 10 Prospekte/Tag decken jeden realen Haushalt.
     ratelimit.pruefe(f"angebote-import:user:{ctx['user_id']}", limit=10, fenster_s=86400)
     b = await datei.read()
     _ist_pdf = (datei.filename or "").lower().endswith(".pdf") or datei.content_type == "application/pdf"
@@ -1669,21 +1311,12 @@ def _chat_verlauf(body: ChatBody) -> list[dict]:
 @router.post("/chat", dependencies=[Depends(ki_auth)])
 async def chat_endpoint(body: ChatBody):
     """In-App-Chat (synchron). Siehe /chat/start für den Hintergrund-Lauf."""
-    box = billing.beginne_kostenerfassung()
-    res = await chat.run(_chat_verlauf(body))
-    if isinstance(res, dict):
-        res["kosten_cents"] = float(box["cents"])
-        res["guthaben_cents"] = await billing.guthaben_jetzt()
-    return res
+    return await chat.run(_chat_verlauf(body))
 
 
 @router.post("/chat/transkribieren", dependencies=[Depends(ki_auth)])
 async def chat_transkribieren(datei: UploadFile = File(...)):
-    """Sprachaufnahme -> Text (Gemini, tokenbasiert abgerechnet als 'spracheingabe').
-
-    Standardmäßig deaktiviert (config.SPRACHEINGABE_AKTIV): der Zweck 'spracheingabe' zählt
-    nicht gegen das Monatskontingent, hat kein Rate-Limit und läuft auf dem Tarif-Modell des
-    Kontos. Bis das gedeckelt ist, bleibt der Pfad geschlossen."""
+    """Sprachaufnahme -> Text. Nur aktiv, wenn eine Transkription konfiguriert ist."""
     if not config.SPRACHEINGABE_AKTIV:
         raise HTTPException(503, "Spracheingabe ist derzeit deaktiviert.")
     raw = await datei.read()
@@ -1709,16 +1342,15 @@ async def chat_status(job_id: str):
     if not s or (s.get("account_id") is not None and s["account_id"] != userauth.current_account.get()):
         raise HTTPException(404, "Job nicht gefunden")
     return {"status": s["status"], "antwort": s.get("antwort"),
-            "tools_genutzt": s.get("tools_genutzt", []), "error": s.get("error"),
-            "limit": s.get("limit")}
+            "tools_genutzt": s.get("tools_genutzt", []), "error": s.get("error")}
 
 
 @router.get("/kalender.ics")
 async def kalender_ics(token: str = ""):
-    """Speiseplan als iCalendar-Feed zum Abonnieren in Google Kalender.
-    Bewusst OHNE Bearer-Auth: Google ruft die URL ohne Login ab. Schutz ueber den
-    KALENDER_TOKEN im Query (?token=...); der Pfad muss in Cloudflare Access per
-    Bypass freigegeben sein."""
+    """Speiseplan als iCalendar-Feed zum Abonnieren in einer Kalender-App.
+    Bewusst OHNE Bearer-Auth: Kalender rufen die URL ohne Login ab. Schutz ueber den
+    KALENDER_TOKEN im Query (?token=...); steht die App hinter einem Zugangsschutz,
+    muss dieser Pfad dort freigegeben sein."""
     if not config.KALENDER_TOKEN or token != config.KALENDER_TOKEN:
         raise HTTPException(status_code=403, detail="ungueltiger oder fehlender Token")
     # F10: Feed ist bewusst der Speiseplan des Eigentümer-Kontos (globaler Token). Konto

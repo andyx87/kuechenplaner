@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import billing, config, db, services, userauth
+from . import config, db, services
 from .rest import router
 
 logging.basicConfig(
@@ -52,45 +52,12 @@ async def _angebote_cleanup_loop():
         await asyncio.sleep(24 * 3600)
 
 
-async def _abo_einzug_loop():
-    """Zieht fällige Monats-Grundpauschalen ein (beim Start + täglich, Catch-up).
-    Idempotent pro Konto/Monat, stört den Server nie."""
-    while True:
-        try:
-            res = await billing.abo_sweep()
-            if res.get("konten"):
-                log.info("Abo-Einzug: %s Konten, %s Cent gebucht", res["konten"], res["gebucht_cents"])
-        except Exception as e:
-            log.warning("Abo-Einzug fehlgeschlagen: %s", e)
-        await asyncio.sleep(24 * 3600)
-
-
-async def _beta_inaktiv_loop():
-    """Stuft Beta-Tester nach BETA_INAKTIV_TAGE Tagen ohne Aktivität auf Gratis zurück
-    (trial_bis weg, Platz wird frei). Beim Start + täglich; stört den Server nie."""
-    while True:
-        try:
-            res = await userauth.beta_inaktive_bereinigen()
-            if res.get("zurueckgestuft"):
-                log.info("Beta-Bereinigung: %s Konten zurückgestuft (%s)",
-                         res["zurueckgestuft"], res.get("konten"))
-        except Exception as e:
-            log.warning("Beta-Bereinigung fehlgeschlagen: %s", e)
-        await asyncio.sleep(24 * 3600)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.connect()
     await db.ensure_mail_schema()   # additive Mail-Tokens-Migration (idempotent)
-    await db.ensure_abo_schema()    # additive abo_buchung-Idempotenz-Migration (F4, idempotent)
-    await db.ensure_preisliste_schema()  # additive Foto-Pack-Spalten für die Preisliste (idempotent)
-    await db.ensure_beta_schema()        # Beta-Anmeldelinks je Kanal (idempotent)
-    await db.ensure_kuendigung_schema()  # Nachweistabelle Kündigungen § 312k BGB (idempotent)
-    await db.ensure_index_schema()       # Betriebs-Indexe aus dem Admin-Review (idempotent)
+    await db.ensure_index_schema()  # Betriebs-Indexe/-Spalten (idempotent)
     cleanup_task = asyncio.create_task(_angebote_cleanup_loop())
-    abo_task = asyncio.create_task(_abo_einzug_loop())
-    beta_task = asyncio.create_task(_beta_inaktiv_loop())
     # Lifespan des MCP-Servers mitlaufen lassen (Session-Manager etc.) – nur wenn aktiv.
     if mcp_app is not None:
         async with mcp_app.lifespan(app):
@@ -98,12 +65,10 @@ async def lifespan(app: FastAPI):
     else:
         yield
     cleanup_task.cancel()
-    abo_task.cancel()
-    beta_task.cancel()
     await db.close()
 
 
-app = FastAPI(title="Koch-Assistent", lifespan=lifespan)
+app = FastAPI(title="Topfplan", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -112,12 +77,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.exception_handler(billing.LimitErreicht)
-async def _limit_handler(request: Request, exc: billing.LimitErreicht):
-    """Tarif-Limit erreicht → HTTP 402 mit strukturiertem Body (PAYG/Upgrade-Optionen)."""
-    return JSONResponse(status_code=402, content=billing.limit_payload(exc.info))
-
-
 @app.exception_handler(services.NichtGefunden)
 async def _nichtgefunden_handler(request: Request, exc: services.NichtGefunden):
     """Lösch-/Zugriff auf fremde oder nicht existierende Ressource → HTTP 404
@@ -125,14 +84,6 @@ async def _nichtgefunden_handler(request: Request, exc: services.NichtGefunden):
     return JSONResponse(status_code=404, content={
         "fehler": "nicht_gefunden",
         "meldung": str(exc) or "Nicht gefunden oder kein Zugriff."})
-
-
-@app.exception_handler(billing.AbrechnungspruefungFehlgeschlagen)
-async def _pruef_handler(request: Request, exc: billing.AbrechnungspruefungFehlgeschlagen):
-    """Abrechnungsprüfung nicht auswertbar → HTTP 503 (fail-closed, kein KI-Aufruf, F9)."""
-    return JSONResponse(status_code=503, content={
-        "fehler": "abrechnung_nicht_pruefbar",
-        "meldung": "Die Abrechnung ist gerade nicht prüfbar. Bitte versuch es gleich noch einmal."})
 
 
 app.include_router(router)

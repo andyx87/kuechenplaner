@@ -3,7 +3,7 @@ import { api } from '../api.js'
 import { Modal, Button, input, Spinner } from '../ui.jsx'
 import { Icon } from '../icons.jsx'
 
-// Schwebender Bug-Button (überall sichtbar) → Meldung an die Beta-Bugreport-DB.
+// Schwebender Bug-Button (überall sichtbar) → Meldung an die Bugreport-DB.
 export default function BugReport({ notify, seite }) {
   const [offen, setOffen] = useState(false)
   const [text, setText] = useState('')
@@ -41,7 +41,7 @@ export default function BugReport({ notify, seite }) {
         <Modal open onClose={() => setOffen(false)} title="Fehler melden">
           <div className="space-y-4">
             <p className="text-sm text-muted">
-              Was hat nicht funktioniert? Beschreibe es kurz – das hilft uns in der Beta enorm.
+              Was hat nicht funktioniert? Beschreibe es kurz – das hilft enorm.
             </p>
             <textarea
               className={input + ' min-h-[120px] w-full'}

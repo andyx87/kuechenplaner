@@ -47,13 +47,8 @@ function FeaturePill({ tone = 'copper', children }) {
   return <span className={`label-mono rounded-full border px-3 py-1.5 ${c}`}>{children}</span>
 }
 
-// `beta` = Infos zum Anmeldelink /beta/<slug> (aus GET /auth/beta/<slug>) oder null.
-// Mit freien Plätzen startet die Seite direkt im Registrieren-Modus und der Kanal wird
-// mitgeschickt; das Backend setzt dann den Vollzugang. Ist der Kanal voll, bleibt es die
-// normale Registrierung – der Hinweis sagt das offen.
-export default function Login({ onAuthed, beta = null }) {
-  const betaOffen = !!beta?.offen
-  const [modus, setModus] = useState(beta ? 'register' : 'login')  // 'login' | 'register'
+export default function Login({ onAuthed }) {
+  const [modus, setModus] = useState('login')  // 'login' | 'register'
   const [email, setEmail] = useState('')
   const [passwort, setPasswort] = useState('')
   const [passwort2, setPasswort2] = useState('')
@@ -78,7 +73,7 @@ export default function Login({ onAuthed, beta = null }) {
     try {
       const res = modus === 'login'
         ? await api.authLogin(email.trim(), passwort)
-        : await api.authRegister(email.trim(), passwort, name.trim(), betaOffen ? beta.slug : null)
+        : await api.authRegister(email.trim(), passwort, name.trim())
       api.setToken(res.token)
       if (modus === 'register') { try { localStorage.setItem('onboarding_pending', '1') } catch { /* ignore */ } }
       onAuthed(res)
@@ -130,40 +125,11 @@ export default function Login({ onAuthed, beta = null }) {
 
         <div className="mx-auto w-full max-w-sm lg:max-w-none">
           <h2 className="font-dish text-4xl leading-tight text-ink">
-            {betaOffen && !istLogin ? 'Willkommen zum Beta-Test.' : istLogin ? 'Melde dich an.' : 'Erstelle deinen Account.'}
+            {istLogin ? 'Melde dich an.' : 'Erstelle deinen Account.'}
           </h2>
           <p className="mt-2 text-sm text-muted">
-            {betaOffen && !istLogin
-              ? `Du testest Topfplan ${beta.trial_tage} Tage lang mit allen Funktionen – kostenlos und ohne Zahlungsdaten.`
-              : istLogin ? 'Schön, dass du wieder da bist.' : 'In einer Minute startklar.'}
+            {istLogin ? 'Schön, dass du wieder da bist.' : 'In einer Minute startklar.'}
           </p>
-
-          {/* Beta-Banner: nur auf den /beta/<slug>-Links. Zahlen kommen vom Server, damit
-              hier nichts Falsches steht, wenn Plätze oder Laufzeit geändert werden. */}
-          {beta && !istLogin && (
-            betaOffen ? (
-              <div className="mt-5 rounded-2xl border border-olive/40 bg-olive/10 p-4">
-                <p className="label-mono text-olive">Beta · {beta.name}</p>
-                <ul className="mt-2 space-y-1 text-sm text-ink/80">
-                  <li>Voller Zugang für <b>{beta.trial_tage} Tage</b>, danach automatisch die Gratis-Version</li>
-                  <li>Kein Abo, keine Zahlungsdaten, keine automatische Verlängerung</li>
-                  <li>Noch <b>{beta.frei}</b> von {beta.plaetze} Plätzen frei</li>
-                </ul>
-                <p className="mt-2 text-xs text-muted2">
-                  Im Gegenzug freuen wir uns über ehrliches Feedback – auch über das, was nicht gefällt.
-                </p>
-              </div>
-            ) : (
-              <div className="mt-5 rounded-2xl border border-line bg-surface p-4">
-                <p className="label-mono text-muted2">Beta · {beta.name}</p>
-                <p className="mt-2 text-sm text-ink/80">
-                  Die {beta.plaetze} Beta-Plätze für diesen Link sind belegt. Du kannst Topfplan
-                  trotzdem nutzen: Registriere dich normal – alle Funktionen ohne KI sind frei,
-                  für die KI gibt es ein monatliches Gratis-Kontingent.
-                </p>
-              </div>
-            )
-          )}
 
           <div className="mt-8 space-y-4">
             {!istLogin && (

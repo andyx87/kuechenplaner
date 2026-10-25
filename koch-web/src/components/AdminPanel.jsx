@@ -2,11 +2,8 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import AdminDashboard from './AdminDashboard.jsx'
 import AdminUsers from './AdminUsers.jsx'
-import AdminTarife from './AdminTarife.jsx'
 import AdminZutaten from './AdminZutaten.jsx'
 import AdminBugreports from './AdminBugreports.jsx'
-import AdminGuthabenEinladung from './AdminGuthabenEinladung.jsx'
-import AdminPreise from './AdminPreise.jsx'
 import { Icon } from '../icons.jsx'
 
 // Dedizierter Admin-Bereich (Vollbild) mit eigener Unter-Navigation.
@@ -17,10 +14,7 @@ export default function AdminPanel({ notify, rolle, onClose }) {
     ['dashboard', 'bar-chart', 'Übersicht', true],
     ['nutzer', 'users', 'Nutzer', true],
     ['bugreports', 'bug', 'Bugreports', true],
-    ['tarife', 'credit-card', 'Tarife', superAdmin],
-    ['preise', 'euro', 'Preise', superAdmin],
     ['zutaten', 'carrot', 'Zutaten', superAdmin],
-    ['einladungen', 'ticket', 'Einladungen', superAdmin],
   ].filter(([, , , show]) => show)
   const [tab, setTab] = useState('dashboard')
 
@@ -50,12 +44,7 @@ export default function AdminPanel({ notify, rolle, onClose }) {
           {tab === 'dashboard' && <AdminDashboard notify={notify} />}
           {tab === 'nutzer' && <AdminUsers notify={notify} superAdmin={superAdmin} />}
           {tab === 'bugreports' && <AdminBugreports notify={notify} />}
-          {tab === 'tarife' && superAdmin && <AdminTarife notify={notify} />}
-          {/* War seit jeher gebaut, aber nie eingebunden (Befund Admin-Review 2026-07-26) –
-              hierüber sind Foto-Pack, Overage und Bild-Basispreise ohne Deploy pflegbar. */}
-          {tab === 'preise' && superAdmin && <AdminPreise notify={notify} />}
           {tab === 'zutaten' && superAdmin && <AdminZutaten notify={notify} />}
-          {tab === 'einladungen' && superAdmin && <AdminGuthabenEinladung notify={notify} />}
         </div>
       </main>
     </div>,

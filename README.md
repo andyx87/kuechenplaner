@@ -9,7 +9,7 @@ Haushalt:
   Speiseplan als ICS-Kalenderfeed
 - **Angebote** aus Supermarkt-Prospekten (PDF/Fotos) erfassen und in der Planung bevorzugen
 - **Chat-Assistent** für Fragen rund ums Kochen
-- Mehrere Haushalte (Mandanten) mit Mitgliedern, optionale Abrechnung über Stripe
+- Mehrere Haushalte (Mandanten) mit Mitgliedern – selbst gehostet, ohne Abrechnung oder Limits
 
 Code und Kommentare sind überwiegend auf Deutsch.
 
@@ -24,11 +24,12 @@ app/        Backend: FastAPI + asyncpg
   rest.py        REST-API (/api/...) für die Web-App
   mcp_server.py  optionaler MCP-Endpunkt (/mcp) für KI-Clients, standardmäßig AUS
   services.py    Kernlogik (von REST und MCP gemeinsam genutzt)
-  billing.py     Kontingente/Abrechnung, stripe_pay.py Stripe-Anbindung
   userauth.py    Konten, Login, Haushalte
   chat.py, vision.py, bilder.py, ...  KI-Funktionen (Google Vertex AI / Gemini)
 schema.sql  vollständiges Postgres-Schema (Schema `koch`, Mandantentrennung per RLS)
 migration_*.sql  inkrementelle Migrationen für bestehende Datenbanken
+                 (migration_ohne_abrechnung.sql entfernt Abrechnungsreste aus Datenbanken
+                 des früheren Schemas; frische Installationen brauchen sie nicht)
 tests/      Backend-Tests (laufen ohne Datenbank)
 ```
 
@@ -68,11 +69,10 @@ Erläuterung stehen in [`.env.example`](.env.example) bzw. `app/config.py`. Wich
 | Variable | Zweck |
 |---|---|
 | `POSTGRES_PASSWORD`, `DATABASE_URL` | Datenbank (Pflicht) |
-| `APP_BASE_URL` | öffentliche URL der Web-App (Links in Mails, Zahlungs-Redirects) |
+| `APP_BASE_URL` | öffentliche URL der Web-App (Links in Mails) |
 | `GCP_PROJECT`, `VERTEX_LOCATION` | Google Vertex AI für alle KI-Funktionen (kein Default) |
 | `ADMIN_BOOTSTRAP_TOKEN` | macht den ersten Signup mit diesem Token zum Plattform-Admin |
 | `RESEND_API_KEY`, `MAIL_FROM` | E-Mail-Versand (optional; ohne Key wird nur geloggt) |
-| `STRIPE_*` | Zahlungen (optional; ohne Keys sind Checkouts deaktiviert) |
 | `MCP_ENABLED` | MCP-Endpunkt einschalten – nur in vertrauenswürdigen Netzen |
 
 Die KI-Aufrufe authentifizieren sich über Google Application Default Credentials
@@ -85,7 +85,7 @@ Frontend-Build-Variablen (`VITE_*`) stehen in [`koch-web/.env.example`](koch-web
 Impressum, Datenschutzerklärung und Nutzungsbedingungen in
 `koch-web/src/components/Rechtliches.jsx` sind Vorlagen. Wer die App öffentlich betreibt,
 muss die Betreiberangaben über `VITE_IMPRESSUM_*` setzen und die Texte rechtlich prüfen und
-an den eigenen Betrieb (Hosting, Dienstleister, Preise, Umsatzsteuer) anpassen.
+an den eigenen Betrieb (Hosting, Dienstleister) anpassen.
 
 ## Tests
 

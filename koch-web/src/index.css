@@ -107,22 +107,6 @@ body::before {
 /* Allgemeine UI-Überschriften (Sans, „Verstand") */
 .font-display { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.015em; }
 
-/* Eingebettete IT-Recht-HTML-Rechtstexte: Grund-Typografie (Tailwind-Preflight setzt
-   Listen/Überschriften sonst zurück). */
-.rechtstext-html h1, .rechtstext-html h2, .rechtstext-html h3, .rechtstext-html h4 {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-weight: 700; color: var(--ink);
-  margin: 1.2em 0 .4em; line-height: 1.25;
-}
-.rechtstext-html h1 { font-size: 1.4rem } .rechtstext-html h2 { font-size: 1.18rem }
-.rechtstext-html h3 { font-size: 1.05rem } .rechtstext-html h4 { font-size: 1rem }
-.rechtstext-html p { margin: .6em 0 }
-.rechtstext-html ul, .rechtstext-html ol { margin: .6em 0 .6em 1.3em; list-style: revert }
-.rechtstext-html li { margin: .25em 0 }
-.rechtstext-html a { color: var(--terracotta); text-decoration: underline; word-break: break-word }
-.rechtstext-html b, .rechtstext-html strong { color: var(--ink) }
-.rechtstext-html table { width: 100%; border-collapse: collapse; margin: .6em 0 }
-.rechtstext-html td, .rechtstext-html th { border: 1px solid var(--line); padding: .4em .6em; text-align: left }
-
 /* Gerichtsnamen / große redaktionelle Aussagen (Serif, „Genuss") */
 .font-dish { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: 0; line-height: 1.1; }
 

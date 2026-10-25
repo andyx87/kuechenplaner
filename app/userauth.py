@@ -27,11 +27,10 @@ _ph = PasswordHasher()
 SESSION_TAGE = 60
 
 # Zweckbindung für Tokens in passwort_reset: Kontolösch-Bestätigungslinks (s.
-# kontoloeschung.py) und Kündigungs-Bestätigungslinks (s. kuendigung.py) tragen diese
-# Präfixe und werden vom Passwort-Reset abgelehnt – umgekehrt akzeptiert jeder Ablauf
-# nur Tokens mit dem eigenen Präfix. Ohne DDL, da alle Abläufe dieselbe Tabelle nutzen.
+# kontoloeschung.py) tragen dieses Präfix und werden vom Passwort-Reset abgelehnt –
+# umgekehrt akzeptiert jeder Ablauf nur Tokens mit dem eigenen Präfix. Ohne DDL, da
+# alle Abläufe dieselbe Tabelle nutzen.
 LOESCH_TOKEN_PREFIX = "kl1-"
-KUEND_TOKEN_PREFIX = "kd1-"
 
 # Konstanter Dummy-Hash: bei unbekannter/inaktiver E-Mail wird trotzdem eine argon2-
 # Verifikation ausgeführt, damit die Antwortzeit keine gültigen Konten verrät (F6).
@@ -50,7 +49,7 @@ async def _me(con, uid: int, acc_id: int | None) -> dict:
     if acc_id:
         rolle = await con.fetchval(
             "SELECT rolle FROM account_mitglied WHERE user_id=$1 AND account_id=$2", uid, acc_id)
-        acc = await con.fetchrow("SELECT id, name, guthaben_cents, abo_status FROM account WHERE id=$1", acc_id)
+        acc = await con.fetchrow("SELECT id, name FROM account WHERE id=$1", acc_id)
     su = bool(u and u["plattform_rolle"] == "super_admin")
     return {
         "user": {"id": u["id"], "email": str(u["email"]), "name": u["name"],
@@ -71,102 +70,7 @@ async def _neue_session(con, uid: int, acc_id: int | None) -> dict:
     return {"token": token, **me}
 
 
-async def beta_info(slug: str | None) -> dict | None:
-    """Öffentlicher Status eines Beta-Kanals für die Anmeldeseite /beta/<slug>.
-    None = Kanal unbekannt oder abgeschaltet (Seite zeigt dann die normale Registrierung)."""
-    s = (slug or "").strip().lower()
-    if not s:
-        return None
-    try:
-        async with pool().acquire() as con:
-            q = await con.fetchrow(
-                "SELECT slug, name, max_konten, trial_tage FROM beta_quelle "
-                "WHERE slug = $1 AND aktiv", s)
-            if q is None:
-                return None
-            belegt = await con.fetchval(
-                "SELECT count(*) FROM account WHERE beta_quelle = $1 "
-                "AND trial_bis IS NOT NULL AND trial_bis >= current_date", s) or 0
-    except Exception:
-        # Tabelle noch nicht migriert o. Ä.: kein Beta-Kanal, normale Registrierung greift.
-        return None
-    frei = max(0, int(q["max_konten"]) - int(belegt))
-    return {"slug": q["slug"], "name": q["name"], "trial_tage": int(q["trial_tage"]),
-            "plaetze": int(q["max_konten"]), "belegt": int(belegt), "frei": frei,
-            "offen": frei > 0}
-
-
-async def _beta_platz_vergeben(con, account_id: int, slug: str | None) -> int | None:
-    """Belegt innerhalb der laufenden Registrierungs-Transaktion einen Beta-Platz und setzt
-    den Vollzugang (account.trial_bis). Gibt die Trial-Tage zurück oder None.
-
-    Der Zeilen-Lock auf beta_quelle serialisiert Zählen und Belegen – ohne ihn könnten
-    gleichzeitige Anmeldungen das Kontingent überziehen (50 Plätze wären dann 53)."""
-    s = (slug or "").strip().lower()
-    if not s:
-        return None
-    try:
-        q = await con.fetchrow(
-            "SELECT max_konten, trial_tage FROM beta_quelle WHERE slug = $1 AND aktiv FOR UPDATE", s)
-        if q is None:
-            return None
-        belegt = await con.fetchval(
-            "SELECT count(*) FROM account WHERE beta_quelle = $1 "
-            "AND trial_bis IS NOT NULL AND trial_bis >= current_date", s) or 0
-        if int(belegt) >= int(q["max_konten"]):
-            return None      # Kanal voll → normale Registrierung, kein Trial
-        tage = max(1, int(q["trial_tage"]))
-        await con.execute(
-            "UPDATE account SET beta_quelle = $2, trial_bis = (current_date + $3::integer) "
-            "WHERE id = $1", account_id, s, tage)
-        return tage
-    except Exception:
-        # Beta-Tabelle fehlt/fehlerhaft: Registrierung NICHT scheitern lassen.
-        return None
-
-
-async def beta_inaktive_bereinigen() -> dict:
-    """Beta-Tester nach config.BETA_INAKTIV_TAGE Tagen ohne Aktivität zurückstufen:
-    trial_bis wird gelöscht (Konto läuft als Gratis weiter, nichts wird gelöscht), der
-    Beta-Platz wird dadurch frei (Zählung: nur laufende Trials belegen einen Platz).
-    Die Kanal-Zuordnung (beta_quelle) bleibt für die Auswertung erhalten.
-
-    Aktivität = account.zuletzt_aktiv (Stempel in context_from_token, max. stündlich).
-    Fallback für Konten ohne Stempel (Spalte neu): jüngste Session-Erstellung der
-    Mitglieder – so wird niemand zurückgestuft, der sich gerade erst registriert hat."""
-    tage = int(config.BETA_INAKTIV_TAGE or 0)
-    if tage <= 0:
-        return {"aktiv": False}
-    async with pool().acquire() as con:
-        rows = await con.fetch(
-            """UPDATE account a SET trial_bis = NULL
-                WHERE a.beta_quelle IS NOT NULL
-                  AND a.trial_bis IS NOT NULL AND a.trial_bis >= current_date
-                  AND COALESCE(a.zuletzt_aktiv, '-infinity') < now() - ($1 || ' days')::interval
-                  AND NOT EXISTS (
-                        SELECT 1 FROM app_session s
-                          JOIN account_mitglied m ON m.user_id = s.user_id
-                         WHERE m.account_id = a.id
-                           AND s.created_at >= now() - ($1 || ' days')::interval)
-                RETURNING a.id, a.beta_quelle""", str(tage))
-        # Abschieds-Mail an die Owner – tolerant, der Job darf daran nie scheitern.
-        from . import mailer   # lokal wegen Import-Zyklus (wie in register/reset)
-        for r in rows:
-            try:
-                mails = await con.fetch(
-                    """SELECT u.email::text AS email FROM app_user u
-                         JOIN account_mitglied m ON m.user_id = u.id
-                        WHERE m.account_id = $1 AND m.rolle = 'owner'""", r["id"])
-                for m in mails:
-                    await mailer.send_beta_beendet(m["email"], tage)
-            except Exception:
-                pass
-    return {"aktiv": True, "zurueckgestuft": len(rows),
-            "konten": [int(r["id"]) for r in rows]}
-
-
-async def register(email: str, password: str, name: str, bootstrap_token: str | None = None,
-                   beta: str | None = None) -> dict:
+async def register(email: str, password: str, name: str, bootstrap_token: str | None = None) -> dict:
     email = (email or "").strip().lower()
     if "@" not in email or "." not in email:
         return {"error": "Bitte eine gültige E-Mail angeben."}
@@ -206,7 +110,9 @@ async def register(email: str, password: str, name: str, bootstrap_token: str | 
                 "INSERT INTO app_user (email, password_hash, name, plattform_rolle) "
                 "VALUES ($1,$2,$3,$4) RETURNING id",
                 email, pw_hash, name, ("super_admin" if darf_bootstrap else None))
-            if darf_bootstrap:
+            # Frische Instanz: Konto 1 existiert evtl. noch nicht -> normal anlegen
+            # (die Sequenz liefert auf leerer Tabelle ohnehin id 1).
+            if darf_bootstrap and await con.fetchval("SELECT 1 FROM account WHERE id=1"):
                 acc_id = 1
                 await con.execute(
                     "UPDATE account SET name = COALESCE(NULLIF($1,''), name) WHERE id=1",
@@ -218,10 +124,6 @@ async def register(email: str, password: str, name: str, bootstrap_token: str | 
             await con.execute(
                 "INSERT INTO account_mitglied (account_id, user_id, rolle) VALUES ($1,$2,'owner') "
                 "ON CONFLICT DO NOTHING", acc_id, uid)
-            # Beta-Link (/beta/<slug>): Platz belegen und Vollzugang setzen. Ist der Kanal
-            # voll oder unbekannt, entsteht ein normales Gratis-Konto – die Registrierung
-            # scheitert daran nie.
-            beta_tage = await _beta_platz_vergeben(con, acc_id, beta)
             sess = await _neue_session(con, uid, acc_id)
     # NACH dem Commit: Bestätigungs-Token + Mail – komplett tolerant. Die Registrierung
     # darf hieran NIE scheitern (z. B. wenn die email_verify-Tabelle noch fehlt).
@@ -232,8 +134,6 @@ async def register(email: str, password: str, name: str, bootstrap_token: str | 
         await mailer.send_verifizierung(email, verify_token)
     except Exception:
         pass
-    if beta_tage:
-        sess = {**sess, "beta": {"quelle": (beta or "").strip().lower(), "trial_tage": beta_tage}}
     return sess
 
 
@@ -294,9 +194,8 @@ async def passwort_reset_anfordern(email: str) -> dict:
 
 
 async def passwort_reset_ausfuehren(token: str, password: str) -> dict:
-    # Zweckbindung: Kontolösch-/Kündigungs-Tokens (Präfix, s. kontoloeschung.py bzw.
-    # kuendigung.py) sind hier ungültig.
-    if not token or token.startswith((LOESCH_TOKEN_PREFIX, KUEND_TOKEN_PREFIX)):
+    # Zweckbindung: Kontolösch-Tokens (Präfix, s. kontoloeschung.py) sind hier ungültig.
+    if not token or token.startswith(LOESCH_TOKEN_PREFIX):
         return {"error": "Ungültiger Link."}
     if not password or len(password) < 8:
         return {"error": "Passwort muss mindestens 8 Zeichen haben."}
@@ -431,12 +330,12 @@ async def account_fuer_user(user_id: int) -> int | None:
 
 
 async def list_users() -> list[dict]:
-    """Alle User für das Backoffice (Konto, Rolle, Upload-Recht, Guthaben)."""
+    """Alle User für das Backoffice (Konto, Rolle, Upload-Recht)."""
     async with pool().acquire() as con:
         rows = await con.fetch(
             """SELECT u.id, u.email::text AS email, u.name, u.plattform_rolle,
                       u.darf_angebote_upload, u.aktiv,
-                      am.account_id, am.ki_erlaubt, a.name AS account_name, a.guthaben_cents::float AS guthaben_cents
+                      am.account_id, am.ki_erlaubt, a.name AS account_name
                FROM app_user u
                LEFT JOIN account_mitglied am ON am.user_id = u.id
                LEFT JOIN account a ON a.id = am.account_id
@@ -448,7 +347,6 @@ _USER_SORT = {
     "id": "u.id", "id_desc": "u.id DESC",
     "email": "u.email", "name": "u.name",
     "neu": "u.created_at DESC", "alt": "u.created_at",
-    "guthaben": "a.guthaben_cents DESC NULLS LAST",
 }
 
 
@@ -477,8 +375,7 @@ async def list_users_paged(q: str | None = None, limit: int = 25, offset: int = 
             f"""SELECT u.id, u.email::text AS email, u.name, u.plattform_rolle,
                        u.darf_angebote_upload, u.aktiv, u.created_at,
                        am.account_id, am.ki_erlaubt, am.rolle AS konto_rolle,
-                       a.name AS account_name, a.guthaben_cents::float AS guthaben_cents,
-                       a.tarif_code, a.abo_bezahlt_bis
+                       a.name AS account_name
                 FROM app_user u
                 LEFT JOIN account_mitglied am ON am.user_id = u.id
                 LEFT JOIN account a ON a.id = am.account_id

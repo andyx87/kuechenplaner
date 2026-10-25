@@ -56,9 +56,7 @@ export default function Mitglieder({ notify }) {
         <h3 className="mb-1 font-display text-xl">Familienmitglieder einladen</h3>
         <p className="mb-3 text-sm text-muted">
           Lade Mitglieder mit eigener E-Mail in euren Haushalt ein – sie bekommen einen eigenen
-          Login und teilen Rezepte, Vorrat & Planung. Das Einladen ist <b>kostenlos</b> und die
-          Zahl der Mitglieder ändert den Preis nicht: Zugang und Kontingente gelten für den
-          ganzen Haushalt, nicht je Person.
+          Login und teilen Rezepte, Vorrat & Planung.
         </p>
         <div className="flex gap-2">
           <input

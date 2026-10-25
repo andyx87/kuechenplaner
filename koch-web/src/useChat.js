@@ -75,12 +75,6 @@ export function useChat(notify) {
           done = true
           setMessages((m) => [...m, { role: 'assistant', content: s.antwort || '(keine Antwort)', tools: s.tools_genutzt || [] }])
           setJob(null)
-        } else if (s.status === 'limit') {
-          // Tarif-Limit erreicht → globalen LimitDialog auslösen, Hinweis im Verlauf.
-          done = true
-          try { window.dispatchEvent(new CustomEvent('koch:limit', { detail: s.limit })) } catch { /* ignore */ }
-          setMessages((m) => [...m, { role: 'assistant', content: 'Dein Monatskontingent ist erreicht – die Details stehen im eingeblendeten Hinweis. Danach einfach erneut senden.', tools: [] }])
-          setJob(null)
         } else if (s.status === 'fehler') {
           done = true
           setMessages((m) => [...m, { role: 'assistant', content: 'Fehler: ' + (s.error || ''), tools: [] }])

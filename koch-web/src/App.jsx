@@ -9,20 +9,16 @@ import Einkaufsliste from './components/Einkaufsliste.jsx'
 import Angebote from './components/Angebote.jsx'
 import Start from './components/Start.jsx'
 import Chat from './components/Chat.jsx'
-import Abrechnung from './components/Abrechnung.jsx'
 import Onboarding from './components/Onboarding.jsx'
 import AdminPanel from './components/AdminPanel.jsx'
 import InstallHinweis from './components/InstallHinweis.jsx'
-import LimitDialog from './components/LimitDialog.jsx'
-import WasIstNeu from './components/WasIstNeu.jsx'
 import BugReport from './components/BugReport.jsx'
-import { Modal, Spinner, Button, ConfirmHost, confirmDialog } from './ui.jsx'
+import { Modal, Spinner, ConfirmHost, confirmDialog } from './ui.jsx'
 import { Icon } from './icons.jsx'
 import * as backnav from './backnav.js'
 import { api } from './api.js'
 import { useChat } from './useChat.js'
 import { getVorratAktiv, setVorratAktiv, getAbhakModus, setAbhakModus, getTheme, setTheme } from './settings.js'
-import { IST_NATIVE } from './native.js'
 import { posKey, ladeErledigt, bereinigeErledigt } from './einkaufErledigt.js'
 
 // Alle Haupt-Bereiche (flache Navigation). Die untere Tab-Leiste zeigt die ersten vier
@@ -72,12 +68,8 @@ export default function App({ auth, onLogout }) {
   const [einkaufOffen, setEinkaufOffen] = useState(false)
   const [chatOffen, setChatOffen] = useState(false)
   const [settingsOffen, setSettingsOffen] = useState(false)
-  const [abrechnungOffen, setAbrechnungOffen] = useState(false)
   const [adminOffen, setAdminOffen] = useState(false)
-  const [limitInfo, setLimitInfo] = useState(null)
   const [onboardingOffen, setOnboardingOffen] = useState(false)
-  const [belohnung, setBelohnung] = useState(null)   // Danke-Popup für behobene Bugreports
-  const [wasNeu, setWasNeu] = useState(false)        // einmalige "Was ist neu"-Präsentation
   const [warenkorbAnzahl, setWarenkorbAnzahl] = useState(0)
   const [warenkorbSpaeter, setWarenkorbSpaeter] = useState(false)
 
@@ -227,72 +219,6 @@ export default function App({ auth, onLogout }) {
     setTimeout(() => setToast((t) => (t && t.id === id ? null : t)), action ? 6500 : 5000)
   }, [])
 
-  // Rückkehr von Stripe (?aufladung=SESSION_ID) → Guthaben gutschreiben (idempotent).
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search)
-    const a = p.get('aufladung')
-    if (!a) return
-    const sauber = () => { p.delete('aufladung'); const s = p.toString(); window.history.replaceState({}, '', window.location.pathname + (s ? '?' + s : '')) }
-    if (a === 'abbruch') { notify('Aufladung abgebrochen', 'err'); sauber(); return }
-    api.guthabenCheckoutBestaetigen(a)
-      .then((r) => { if (r?.gutgeschrieben) notify(`${(r.betrag_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })} € aufgeladen`); else if (r?.bereits_verbucht) notify('Aufladung war bereits verbucht'); })
-      .catch(() => notify('Aufladung konnte nicht bestätigt werden', 'err'))
-      .finally(sauber)
-  }, [notify])
-
-  // Rückkehr von Stripe (?abo=SESSION / ?credits=SESSION). Verbuchung läuft server-seitig
-  // über den Webhook (idempotent) – hier nur Rückmeldung + URL säubern; Zugang/Credits
-  // sind in wenigen Sekunden aktiv.
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search)
-    const abo = p.get('abo'); const cr = p.get('credits')
-    if (!abo && !cr) return
-    const key = abo ? 'abo' : 'credits'
-    const sauber = () => { p.delete(key); const s = p.toString(); window.history.replaceState({}, '', window.location.pathname + (s ? '?' + s : '')) }
-    if ((abo || cr) === 'abbruch') { notify(abo ? 'Abo abgebrochen' : 'Kauf abgebrochen', 'err'); sauber(); return }
-    notify(abo ? 'Danke! Dein Topfplan-Abo ist in wenigen Sekunden aktiv.' : 'Danke! Deine Foto-Credits sind gleich verfügbar.', 'ok')
-    sauber()
-  }, [notify])
-
-  // Beim Login prüfen, ob gemeldete Bugs behoben wurden → Danke-Popup (Guthaben wurde
-  // serverseitig bereits beim Erledigen gutgeschrieben). localStorage merkt sich, welche
-  // Gutschriften schon gezeigt wurden, damit das Popup nur einmal je Bonus erscheint.
-  const belohnungGeprueft = useRef(false)
-  useEffect(() => {
-    if (belohnungGeprueft.current) return
-    belohnungGeprueft.current = true
-    api.bugreportBelohnungen()
-      .then((r) => {
-        const alle = r?.belohnungen || []
-        let gesehen = []
-        try { gesehen = JSON.parse(localStorage.getItem('belohnung_gesehen') || '[]') } catch { /* ignore */ }
-        const neu = alle.filter((b) => !gesehen.includes(b.id))
-        if (neu.length) {
-          setBelohnung({ belohnungen: neu, guthaben_cents: r.guthaben_cents })
-          try { localStorage.setItem('belohnung_gesehen', JSON.stringify([...gesehen, ...neu.map((b) => b.id)].slice(-200))) } catch { /* ignore */ }
-        }
-      })
-      .catch(() => { /* still – kein Störer beim Start */ })
-  }, [])
-
-  // Einmalige "Was ist neu"-Präsentation nach der Abo-Umstellung (nur eingeloggt).
-  const wasNeuGeprueft = useRef(false)
-  useEffect(() => {
-    if (wasNeuGeprueft.current) return
-    wasNeuGeprueft.current = true
-    try {
-      // Nativ nie: der Hinweis nennt Abo-Preise (Google-Play-Payments-Richtlinie).
-      if (!IST_NATIVE && localStorage.getItem('koch_token') && !localStorage.getItem('wasistneu_abo_v4')) setWasNeu(true)
-    } catch { /* ignore */ }
-  }, [])
-
-  // Tarif-Limit (HTTP 402) global abfangen → LimitDialog (PAYG/Upgrade).
-  useEffect(() => {
-    const h = (e) => setLimitInfo(e.detail || {})
-    window.addEventListener('koch:limit', h)
-    return () => window.removeEventListener('koch:limit', h)
-  }, [])
-
   // Chat-Zustand auf App-Ebene: läuft weiter, auch wenn das Fenster zu ist.
   const chat = useChat(notify)
   const [chatHinweis, setChatHinweis] = useState(null) // 'laeuft' | 'fertig' | null
@@ -328,16 +254,6 @@ export default function App({ auth, onLogout }) {
       setOpenRezeptId(Number(rid))
       window.history.replaceState(window.history.state, '', window.location.pathname)
     }
-  }, [])
-
-  // Guthaben-Einladung: ?guthaben=<code> einmalig einlösen und Hinweis zeigen.
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('guthaben')
-    if (!code) return
-    window.history.replaceState(window.history.state, '', window.location.pathname)
-    api.guthabenEinloesen(code)
-      .then((r) => notify(`${((r.betrag_cents || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })} € Guthaben gutgeschrieben!`))
-      .catch((e) => notify(e.message || 'Einladung ungültig oder bereits eingelöst', 'err'))
   }, [])
 
   // Onboarding-Abschluss „Erstes Rezept erstellen" → auf den Start-Tab wechseln
@@ -455,8 +371,6 @@ export default function App({ auth, onLogout }) {
             )}
             <MehrLink icon="users" label="Haushalt" hint="Personen & Einladungen" onClick={() => { setMehrOffen(false); setGruppe('haushalt') }} />
             <MehrLink icon="shopping-cart" label="Einkaufsliste" hint="Aktueller Einkauf" badge={warenkorbAnzahl > 0 ? warenkorbAnzahl : null} onClick={() => { setMehrOffen(false); setEinkaufOffen(true) }} />
-            {/* Nativ ohne das Wort „Abo": in der App ist nichts kaufbar (Google-Play-Payments-Richtlinie). */}
-            <MehrLink icon="credit-card" label="Abrechnung & Tarif" hint={IST_NATIVE ? 'Verbrauch & Kontingent' : 'Verbrauch & Abo'} onClick={() => { setMehrOffen(false); setAbrechnungOffen(true) }} />
             <MehrLink icon="settings" label="Einstellungen" onClick={() => { setMehrOffen(false); setSettingsOffen(true) }} />
             {(auth?.user?.plattform_rolle === 'super_admin' || auth?.user?.plattform_rolle === 'support') && (
               <MehrLink icon="wrench" label="Admin-Bereich" hint="Backoffice & Kennzahlen" onClick={() => { setMehrOffen(false); setAdminOffen(true) }} />
@@ -486,18 +400,6 @@ export default function App({ auth, onLogout }) {
                 <button onClick={onLogout} className="relative shrink-0 rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-ink/70 hover:bg-ink/5">Abmelden</button>
               </div>
             )}
-
-            <p className="pt-1 text-xs font-bold uppercase tracking-wide text-ink/40">Konto</p>
-            <button
-              onClick={() => { setSettingsOffen(false); setAbrechnungOffen(true) }}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border border-line p-3 text-left hover:bg-ink/5"
-            >
-              <span>
-                <span className="inline-flex items-center gap-1 font-semibold"><Icon name="bar-chart" size={18} /> Verbrauch & Tarif</span>
-                <span className="mt-0.5 block text-sm text-ink/60">Dein Monatskontingent und der Verbrauch der KI-Funktionen.</span>
-              </span>
-              <span className="shrink-0 text-ink/40">›</span>
-            </button>
 
             <p className="pt-2 text-xs font-bold uppercase tracking-wide text-ink/40">App</p>
 
@@ -633,7 +535,7 @@ export default function App({ auth, onLogout }) {
               onClick={async () => {
                 const ok = await confirmDialog({
                   title: 'Konto löschen',
-                  message: 'Dein Login wird dauerhaft gelöscht. Warst du der Eigentümer/Zahler, endet das Abo der übrigen Mitglieder zum Ende des bezahlten Zeitraums. Bist du der letzte Nutzer dieses Haushalts, werden auch alle Haushalts-Daten (Rezepte, Vorrat, Plan …) unwiderruflich entfernt.\n\nFortfahren?',
+                  message: 'Dein Login wird dauerhaft gelöscht. Bist du der letzte Nutzer dieses Haushalts, werden auch alle Haushalts-Daten (Rezepte, Vorrat, Plan …) unwiderruflich entfernt.\n\nFortfahren?',
                   confirmLabel: 'Konto löschen',
                 })
                 if (!ok) return
@@ -677,51 +579,8 @@ export default function App({ auth, onLogout }) {
         </Modal>
       )}
 
-      {abrechnungOffen && (
-        <Abrechnung onClose={() => setAbrechnungOffen(false)} notify={notify} />
-      )}
-
       {adminOffen && (auth?.user?.plattform_rolle === 'super_admin' || auth?.user?.plattform_rolle === 'support') && (
         <AdminPanel notify={notify} rolle={auth.user.plattform_rolle} onClose={() => setAdminOffen(false)} />
-      )}
-
-      {limitInfo && (
-        <LimitDialog
-          info={limitInfo}
-          notify={notify}
-          onClose={() => setLimitInfo(null)}
-          onUpgrade={() => { setLimitInfo(null); setAbrechnungOffen(true) }}
-        />
-      )}
-
-      {wasNeu && (
-        <WasIstNeu onClose={() => { setWasNeu(false); try { localStorage.setItem('wasistneu_abo_v4', '1') } catch { /* ignore */ } }} />
-      )}
-
-      {belohnung && (
-        <Modal open onClose={() => setBelohnung(null)} title="Danke fürs Melden! 🎉">
-          <div className="space-y-3">
-            <p className="text-sm text-ink">
-              {belohnung.belohnungen.length === 1
-                ? 'Du hast uns einen Fehler gemeldet – wir haben ihn behoben.'
-                : `Du hast uns ${belohnung.belohnungen.length} Fehler gemeldet – wir haben sie behoben.`}
-              {' '}Als Dankeschön haben wir dir{' '}
-              <b>{(belohnung.belohnungen.reduce((s, b) => s + (b.betrag_cents || 0), 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</b>
-              {' '}Guthaben gutgeschrieben.
-            </p>
-            <ul className="space-y-1">
-              {belohnung.belohnungen.map((b) => (
-                <li key={b.id} className="flex items-start gap-2 rounded-lg border border-line bg-paper/60 p-2 text-xs text-muted">
-                  <Icon name="check" size={16} />
-                  <span className="min-w-0 flex-1 truncate">{b.zweck || `Bugreport #${b.id}`}</span>
-                  <span className="shrink-0 font-mono text-olive">+{((b.betrag_cents || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</span>
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-muted2">Neues Guthaben: {(belohnung.guthaben_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</p>
-            <Button onClick={() => setBelohnung(null)} className="w-full">Super, danke!</Button>
-          </div>
-        </Modal>
       )}
 
       {onboardingOffen && (

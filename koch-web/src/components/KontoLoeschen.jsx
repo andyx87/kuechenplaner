@@ -4,17 +4,13 @@ import { Button, input, Spinner } from '../ui.jsx'
 import { Icon } from '../icons.jsx'
 
 // Öffentliche Kontolösch-Seite – erreichbar über /konto-loeschen, bewusst OHNE Anmeldung
-// (Google Play verlangt neben dem In-App-Weg „Mehr → Konto löschen" eine öffentliche
-// Web-Adresse für die Kontolöschung; DSGVO Art. 17).
+// (zusätzlich zum In-App-Weg „Mehr → Konto löschen"; DSGVO Art. 17).
 //
 // Zweistufig: Dieses Formular mailt nur einen Bestätigungslink (POST
 // /auth/konto-loeschen-anfordern). Gelöscht wird erst, wenn der Link aus dem Postfach
 // mit #loesch=<token> geöffnet UND hier erneut bestätigt wird – nie allein auf Basis
 // der eingegebenen E-Mail und nie automatisch beim Laden des Links (damit z. B.
 // Mail-Scanner keine Löschung auslösen).
-//
-// Abgrenzung zur Kündigung: /kuendigen beendet das Abo (Konto und Daten bleiben),
-// /konto-loeschen entfernt das Konto dauerhaft.
 export default function KontoLoeschen({ token, onClose }) {
   return token ? <Bestaetigen token={token} onClose={onClose} /> : <Anfordern onClose={onClose} />
 }
@@ -80,20 +76,13 @@ function Anfordern({ onClose }) {
         <div className="rounded-xl border border-line p-4">
           <p className="label-mono mb-2 text-olive">Was bleibt</p>
           <ul className="list-inside list-disc space-y-1 text-muted">
-            <li>Nachweise, die wir gesetzlich aufbewahren müssen (z. B. Kündigungsprotokoll, Buchungsbelege)</li>
+            <li>Nur Daten, deren Aufbewahrung gesetzlich vorgeschrieben ist (falls zutreffend)</li>
           </ul>
         </div>
       </div>
 
       <p className="mt-4 text-sm text-muted">
         In der App geht es auch direkt über <span className="font-semibold text-ink">Mehr → Konto löschen</span>.
-      </p>
-      <p className="mt-2 text-sm text-muted">
-        Willst du nur dein Abo beenden?{' '}
-        <a href="/kuendigen" className="font-semibold text-terracotta-deep hover:underline">
-          Vertrag kündigen
-        </a>{' '}
-        – dein Konto und deine Daten bleiben dann erhalten.
       </p>
 
       <div className="mt-8 space-y-4">
@@ -159,9 +148,7 @@ function Bestaetigen({ token, onClose }) {
         Du hast angefordert, dein Topfplan-Konto dauerhaft zu löschen. Dieser Schritt ist
         endgültig: Dein Login, deine Rezepte, Pläne, Vorräte und persönlichen Daten werden
         entfernt. Bist du der letzte Nutzer deines Haushalts, wird der komplette Haushalt
-        gelöscht. Ein laufendes Abo endet sofort; die bereits bezahlte Restlaufzeit verfällt.
-        Nachweise mit gesetzlicher Aufbewahrungspflicht (z. B. Kündigungsprotokoll,
-        Buchungsbelege) bleiben erhalten.
+        gelöscht. Erhalten bleiben nur Daten mit gesetzlicher Aufbewahrungspflicht (falls zutreffend).
       </p>
 
       <div className="mt-8 space-y-4">

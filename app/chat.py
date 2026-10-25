@@ -1,4 +1,4 @@
-"""In-App-Chat: agentischer Loop ueber LiteLLM (Gemini) mit Function-Calling.
+"""In-App-Chat: agentischer Loop ueber den konfigurierten KI-Anbieter mit Function-Calling.
 
 Nutzt direkt die bestehenden services-Funktionen als Tools - kein MCP/n8n
 dazwischen, daher kein Tool-Schema-Cache und neue Tools sofort verfuegbar.
@@ -11,24 +11,8 @@ import re
 import uuid
 from datetime import date
 
-from openai import AsyncOpenAI
-
-from . import billing, config, gauth, services, userauth
+from . import config, ki, services, userauth
 from .userauth import current_account, current_user
-
-_client: AsyncOpenAI | None = None
-
-
-def _c() -> AsyncOpenAI:
-    """OpenAI-kompatibler Client gegen Vertex AI. Das Access-Token wird je Aufruf
-    aktualisiert (laeuft ~1 h ab); der HTTP-Client wird wiederverwendet."""
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(base_url=config.VERTEX_BASE_URL, api_key=gauth.get_token())
-    else:
-        _client.api_key = gauth.get_token()
-    return _client
-
 
 def _parse_date(s) -> date:
     if not s:
@@ -595,17 +579,14 @@ async def run(history: list[dict], max_steps: int = 6) -> dict:
         return {"antwort": "Womit kann ich helfen?", "tools_genutzt": []}
 
     genutzt: list[str] = []
-    modell = await billing.modell_fuer_konto()
     # Idempotenz-Cache für die gesamte Antwort: identische Schreib-Tool-Calls (z.B.
     # rezept_anlegen) werden nur einmal ausgeführt – schützt vor Doppel-Inserts, wenn
     # das Modell denselben Call parallel oder in einer Folgerunde erneut absetzt.
     ausgefuehrt: dict[str, object] = {}
     try:
         for _ in range(max_steps):
-            resp = await billing.complete(
-                _c(), "chat",
-                model=modell,
-                messages=messages,
+            resp = await ki.complete(
+                "chat", messages=messages,
                 tools=_TOOL_SPECS,
                 tool_choice="auto",
                 temperature=0.2,
@@ -662,9 +643,9 @@ async def run(history: list[dict], max_steps: int = 6) -> dict:
                     "tool_call_id": tc.id,
                     "content": json.dumps(result, ensure_ascii=False, default=str)[:8000],
                 })
-    except (billing.LimitErreicht, PermissionError):
-        # Limit/Sperre muss als strukturierter Fehler (HTTP 402/403) durchgereicht
-        # werden, NICHT als normale Chat-Antwort verpackt.
+    except PermissionError:
+        # Sperre muss als strukturierter Fehler (HTTP 403) durchgereicht werden,
+        # NICHT als normale Chat-Antwort verpackt.
         raise
     except Exception as e:  # LLM-/Verbindungsfehler lesbar zurueckgeben statt 500
         return {"antwort": f"Chat-Fehler: {type(e).__name__}: {e}",
@@ -681,14 +662,10 @@ CHAT_JOBS: dict[str, dict] = {}
 
 async def _run_job(job_id: str, verlauf: list[dict]) -> None:
     try:
-        box = billing.beginne_kostenerfassung()
         res = await run(verlauf)
         CHAT_JOBS[job_id].update(
             status="fertig", antwort=res.get("antwort"),
-            tools_genutzt=res.get("tools_genutzt", []),
-            kosten_cents=float(box["cents"]), guthaben_cents=await billing.guthaben_jetzt())
-    except billing.LimitErreicht as e:
-        CHAT_JOBS[job_id].update(status="limit", limit=billing.limit_payload(e.info))
+            tools_genutzt=res.get("tools_genutzt", []))
     except PermissionError as e:
         CHAT_JOBS[job_id].update(status="fehler", error=str(e))
     except Exception as e:
@@ -822,9 +799,8 @@ async def generiere_rezept(wunsch: str | None = None, haendler: list[str] | None
     user += "\n\nErstelle genau EIN Rezept. Antworte nur mit JSON."
 
     try:
-        resp = await billing.complete(
-            _c(), "rezept-generieren",
-            model=await billing.modell_fuer_konto(), max_tokens=8192, temperature=0.5,
+        resp = await ki.complete(
+            "rezept-generieren", max_tokens=8192, temperature=0.5,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         )
         text = (resp.choices[0].message.content or "").strip()
@@ -840,8 +816,8 @@ async def generiere_rezept(wunsch: str | None = None, haendler: list[str] | None
             rez = json.loads(text[i:j + 1])
     except json.JSONDecodeError:
         return {"error": "Die KI-Antwort war unvollstaendig (zu lang). Bitte erneut versuchen."}
-    except (billing.LimitErreicht, PermissionError):
-        raise  # Limit/Sperre als HTTP 402/403 durchreichen, nicht als {"error": ...}
+    except PermissionError:
+        raise  # Sperre als HTTP 403 durchreichen, nicht als {"error": ...}
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}"}
     if not isinstance(rez, dict) or not (rez.get("name") or "").strip():

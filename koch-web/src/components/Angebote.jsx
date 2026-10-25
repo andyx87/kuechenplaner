@@ -138,7 +138,7 @@ export default function Angebote({ notify, auth, openRezept }) {
     const jid = (() => { try { return localStorage.getItem(JOB_KEY) } catch { return null } })()
     if (!jid) return
     api.angeboteImportStatus(jid).then((j) => {
-      if (!j || j.status === 'fertig' || j.status === 'fehler' || j.status === 'limit') {
+      if (!j || j.status === 'fertig' || j.status === 'fehler') {
         try { localStorage.removeItem(JOB_KEY) } catch { /* ignore */ }
         return
       }
@@ -156,7 +156,6 @@ export default function Angebote({ notify, auth, openRezept }) {
     if (job.status === 'upload') return `${pre}Datei wird hochgeladen … ${uploadPct}%`
     if (job.status === 'fertig') return `${job.importiert} Angebote importiert${job.markt ? ' · ' + job.markt : ''}`
     if (job.status === 'fehler') return 'Fehler: ' + (job.error || 'unbekannt')
-    if (job.status === 'limit') return 'KI-Limit erreicht – Import pausiert'
     if (job.status === 'rueckfrage') return `Markt/Zeitraum nicht erkannt – Eingabe nötig (${job.gefunden} Angebote)`
     if (job.phase === 'rendern') return `${pre}PDF wird gerendert …`
     if (job.phase === 'erkennen') return `${pre}Seite ${job.seite}/${job.seiten} wird gelesen … (${job.gefunden} Angebote)`
@@ -166,7 +165,7 @@ export default function Angebote({ notify, auth, openRezept }) {
   function statusPct() {
     if (!job) return 0
     if (job.status === 'upload') return uploadPct
-    if (job.status === 'fertig' || job.status === 'fehler' || job.status === 'limit') return 100
+    if (job.status === 'fertig' || job.status === 'fehler') return 100
     if (job.phase === 'rendern') return 8
     if (job.phase === 'erkennen') return job.seiten ? Math.round((job.seite / job.seiten) * 100) : 30
     if (job.phase === 'import') return 96
@@ -235,16 +234,6 @@ export default function Angebote({ notify, auth, openRezept }) {
           ? { ...s, rf: { markt: j.vorschlag?.markt || '', von: j.vorschlag?.gueltig_von || '', bis: j.vorschlag?.gueltig_bis || '' } }
           : s))
         return  // warten auf Nutzereingabe (Kette pausiert)
-      }
-      if (j.status === 'limit') {
-        // KI-Limit erreicht → globalen LimitDialog (PAYG/Upgrade) zeigen, Batch stoppen.
-        pollingJidRef.current = null
-        try { localStorage.removeItem(JOB_KEY) } catch { /* ignore */ }
-        try { if (j.limit) window.dispatchEvent(new CustomEvent('koch:limit', { detail: j.limit })) } catch { /* ignore */ }
-        notify('KI-Limit erreicht – Import pausiert.', 'err')
-        queueRef.current = null
-        setTimeout(() => setJob((x) => (x && x.status === 'limit' ? null : x)), 8000)
-        return
       }
       if (j.status === 'fertig') {
         pollingJidRef.current = null
@@ -328,15 +317,15 @@ export default function Angebote({ notify, auth, openRezept }) {
       <button
         onClick={() => setImp({ phase: 'progress', rf: job.status === 'rueckfrage' ? { markt: job.vorschlag?.markt || '', von: job.vorschlag?.gueltig_von || '', bis: job.vorschlag?.gueltig_bis || '' } : null })}
         className={`mb-4 flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm ${
-          job.status === 'fehler' || job.status === 'limit' ? 'border-terracotta/40 bg-terracotta/10 text-terracotta-deep'
+          job.status === 'fehler' ? 'border-terracotta/40 bg-terracotta/10 text-terracotta-deep'
             : job.status === 'fertig' ? 'border-olive/40 bg-olive/10 text-olive'
             : job.status === 'rueckfrage' ? 'border-line bg-surface text-muted2'
             : 'border-olive/30 bg-olive/10 text-olive'}`}
       >
-        {job.status !== 'fertig' && job.status !== 'fehler' && job.status !== 'rueckfrage' && job.status !== 'limit' && <Spinner />}
+        {job.status !== 'fertig' && job.status !== 'fehler' && job.status !== 'rueckfrage' && <Spinner />}
         <span className="flex-1 inline-flex items-center gap-1 font-semibold"><Icon name="file-text" size={16} /> {statusText()}</span>
         {job.status === 'rueckfrage' ? <span className="text-xs underline">öffnen</span>
-          : (job.status !== 'fertig' && job.status !== 'fehler' && job.status !== 'limit') ? <span className="text-xs opacity-70">{statusPct()}%</span> : null}
+          : (job.status !== 'fertig' && job.status !== 'fehler') ? <span className="text-xs opacity-70">{statusPct()}%</span> : null}
       </button>
     )}
 
@@ -577,7 +566,7 @@ export default function Angebote({ notify, auth, openRezept }) {
       }
       const setRf = (patch) => setImp((s) => ({ ...s, rf: { ...s.rf, ...patch } }))
       const fertig = job?.status === 'fertig'
-      const fehler = job?.status === 'fehler' || job?.status === 'limit'
+      const fehler = job?.status === 'fehler'
       return (
       <Modal open onClose={onClose} title="Prospekt importieren">
         {job?.status === 'rueckfrage' ? (

@@ -1,4 +1,4 @@
-"""Erkennt Lebensmittel auf einem Foto ueber den LiteLLM-Proxy (OpenAI-kompatibel).
+"""Erkennt Lebensmittel bzw. Kuechengeraete auf einem Foto ueber den KI-Anbieter.
 
 Gibt eine Vorschlagsliste zurueck. Der Eintrag in den Vorrat erfolgt erst
 nach Bestaetigung in der Web-App (Review-Schritt).
@@ -7,20 +7,8 @@ from __future__ import annotations
 
 import json
 
-from openai import AsyncOpenAI
+from . import ki
 
-from . import billing, config, gauth
-
-_client: AsyncOpenAI | None = None
-
-
-def _c() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(base_url=config.VERTEX_BASE_URL, api_key=gauth.get_token())
-    else:
-        _client.api_key = gauth.get_token()
-    return _client
 
 
 _SYSTEM = (
@@ -33,10 +21,8 @@ _SYSTEM = (
 
 
 async def foto_zu_items(image_b64: str, media_type: str) -> list[dict]:
-    resp = await billing.complete(
-        _c(), "foto-erkennung",
-        model=await billing.modell_fuer_konto(),
-        max_tokens=1024,
+    resp = await ki.complete(
+        "foto-erkennung", max_tokens=1024,
         messages=[
             {"role": "system", "content": _SYSTEM},
             {
@@ -70,10 +56,8 @@ _SYSTEM_GERAETE = (
 
 
 async def foto_zu_geraeten(image_b64: str, media_type: str) -> list[dict]:
-    resp = await billing.complete(
-        _c(), "foto-erkennung",
-        model=await billing.modell_fuer_konto(),
-        max_tokens=512,
+    resp = await ki.complete(
+        "foto-erkennung", max_tokens=512,
         messages=[
             {"role": "system", "content": _SYSTEM_GERAETE},
             {

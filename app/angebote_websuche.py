@@ -4,7 +4,6 @@ Der Chatbot kann auf Wunsch ("such die aktuellen Angebote von Supermarkt Beispie
 aktuellen Prospekt-/Wochenangeboten eines Marktes suchen. Dafuer rufen wir den nativen
 Vertex generateContent-Endpunkt mit dem `google_search`-Tool auf (das OpenAI-kompatible
 Layer kann kein Grounding) und lassen das Modell die gefundenen Angebote als JSON liefern.
-Abgerechnet wird tokenbasiert wie bei den uebrigen KI-Aufrufen (billing.record_usage).
 
 WICHTIG: Online gefundene Preise koennen veraltet/ungenau sein. Das Ergebnis enthaelt
 daher immer die Quelle; der Chat zeigt es dem Nutzer und erfasst erst nach Bestaetigung
@@ -15,10 +14,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-import types
 
-from . import billing, config, gauth, services
-from .db import acquire
+from . import config, gauth, services
 from .userauth import current_account, current_user, darf_ki
 
 log = logging.getLogger("koch")
@@ -92,23 +89,13 @@ def _json_aus_text(text: str) -> dict:
 async def suche_angebote(markt: str, ort: str | None = None) -> dict:
     """Sucht online die aktuellen Angebote von `markt`. Gibt
     {markt, gueltig_von, gueltig_bis, quelle, angebote:[...], gefunden} zurueck.
-    Wirft PermissionError / billing.LimitErreicht analog zu billing.complete."""
+    Wirft PermissionError ohne KI-Freigabe."""
     markt = (markt or "").strip()
     if not markt:
         return {"gefunden": 0, "angebote": [], "fehler": "Kein Markt angegeben."}
 
-    # Gleiche Vor-Pruefung wie billing.complete: KI-Freigabe + Tarif-Limit.
     if not await darf_ki(current_user.get(), current_account.get()):
         raise PermissionError("KI-Funktionen sind für diesen Nutzer deaktiviert.")
-    acc = current_account.get() or 1
-    try:
-        async with acquire() as con:
-            info = await billing.limit_pruefen(con, acc)
-    except Exception as e:
-        log.warning("limit_pruefen (websuche) fehlgeschlagen: %s", e)
-        info = None
-    if info and info.get("blockiert"):
-        raise billing.LimitErreicht(info)
 
     import httpx
     heute = services._today().isoformat()
@@ -123,16 +110,6 @@ async def suche_angebote(markt: str, ort: str | None = None) -> dict:
         r = await cx.post(url, json=body, headers=headers)
     r.raise_for_status()
     d = r.json() or {}
-
-    # Tokenverbrauch abrechnen (Shim, damit record_usage Markup/PAYG-Abzug wiederverwendet).
-    um = d.get("usageMetadata") or {}
-    pt = int(um.get("promptTokenCount") or 0)
-    tt = int(um.get("totalTokenCount") or 0)
-    ct = int(um.get("candidatesTokenCount") or 0) or max(0, tt - pt)
-    shim = types.SimpleNamespace(
-        usage=types.SimpleNamespace(prompt_tokens=pt, completion_tokens=ct, total_tokens=tt or (pt + ct)),
-        model=_SUCH_MODELL)
-    await billing.record_usage(shim, "angebote-websuche", modell=_SUCH_MODELL)
 
     # Antworttext zusammensetzen und JSON parsen.
     text = ""

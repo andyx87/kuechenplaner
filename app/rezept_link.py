@@ -19,7 +19,7 @@ import re
 import socket
 from urllib.parse import urlsplit
 
-from . import billing, chat, config, services
+from . import ki, services
 from .db import acquire
 from .userauth import current_account, current_user, darf_ki
 
@@ -253,26 +253,9 @@ async def _hole_web_text(url: str) -> str:
 
 
 async def _pruefe_ki() -> None:
-    """KI-Freigabe + Tarif-Limit wie in billing.complete prüfen (vor dem Modell-Aufruf)."""
+    """KI-Freigabe prüfen (vor dem Abruf/Modell-Aufruf)."""
     if not await darf_ki(current_user.get(), current_account.get()):
         raise PermissionError("KI-Funktionen sind für diesen Nutzer deaktiviert.")
-    acc = current_account.get() or 1
-    try:
-        async with acquire() as con:
-            # v4: Gratis-Monatskontingent (wie billing.complete) statt PAYG/Guthaben.
-            # Dieser Vorab-Check ist ein Text-KI-Zweck → ist_bild=False.
-            if config.ABO_MODELL_V4:
-                info = await billing.limit_pruefen_v4(con, acc, ist_bild=False)
-            else:
-                info = await billing.limit_pruefen(con, acc)
-        if info and info.get("blockiert"):
-            raise billing.LimitErreicht(info)
-    except billing.LimitErreicht:
-        raise
-    except Exception as e:
-        # F9: Fail-closed – ohne gültige Prüfung keinen kostenpflichtigen Import durchlassen.
-        log.warning("limit_pruefen (rezept-import) fehlgeschlagen: %s", e)
-        raise billing.AbrechnungspruefungFehlgeschlagen() from e
 
 
 def _parse_json(resp) -> dict:
@@ -360,7 +343,7 @@ async def importiere_aus_link(url: str) -> dict:
     """Importiert ein Rezept aus einer beliebigen Quelle: Instagram-Link, Rezept-Webseite
     (Link) oder eingefügtem Rezepttext. Gibt {status:'ok', rezept:{...}} oder
     {status:'kein_rezept'|'keine_caption'|'nicht_unterstuetzt', ...} zurück.
-    Wirft PermissionError/billing.LimitErreicht wie die übrigen KI-Wege."""
+    Wirft PermissionError wie die übrigen KI-Wege."""
     eingabe = (url or "").strip()
     if not eingabe:
         return {"status": "nicht_unterstuetzt", "meldung": "Bitte einen Link oder Rezepttext eingeben."}
@@ -382,9 +365,8 @@ async def importiere_aus_link(url: str) -> dict:
                            "steht das Rezept evtl. nur im Video – häng dann einen Screenshot/ein PDF "
                            "an. Bei Webseiten kannst du auch den Rezepttext direkt einfügen."}
 
-    resp = await billing.complete(
-        chat._c(), "rezept-link",
-        model=await billing.modell_fuer_konto(),
+    resp = await ki.complete(
+        "rezept-link",
         messages=[{"role": "system", "content": _PROMPT},
                   {"role": "user", "content": quelltext[:12000]}],
         temperature=0.1,
@@ -419,9 +401,8 @@ async def importiere_aus_dateien(dateien: list[dict]) -> dict:
 
     content = [{"type": "text", "text": "Lies das Rezept aus diesen Bildern/Seiten. Gib NUR das JSON aus."}]
     content += [{"type": "image_url", "image_url": {"url": u}} for u in bild_urls]
-    resp = await billing.complete(
-        chat._c(), "rezept-import-datei",
-        model=await billing.modell_fuer_konto(),
+    resp = await ki.complete(
+        "rezept-import-datei",
         messages=[{"role": "system", "content": _PROMPT},
                   {"role": "user", "content": content}],
         temperature=0.1,

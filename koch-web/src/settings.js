@@ -2,18 +2,12 @@
 const VORRAT_KEY = 'vorrat_aktiv'
 const ABHAK_KEY = 'einkauf_abhak_modus'
 
-// Abo-Modell v4 (Topfplan-Abo + Foto-Credits, kein €-Guthaben mehr). Aktiv fürs neue Modell.
-// Das serverseitige Verhalten schaltet zusätzlich das Backend-Flag ABO_MODELL_V4.
-export const ABO_AKTIV = true
-
 // Spracheingabe/Sprachsteuerung: AUS. Zwei Gründe:
-//  1) Kosten – der Zweck 'spracheingabe' zählt nicht gegen das Monatskontingent, hat kein
-//     Rate-Limit und lief auf dem Tarif-Modell des Kontos. Das Backend liefert deshalb 503
-//     (config.SPRACHEINGABE_AKTIV).
+//  1) Das Backend liefert für die Spracheingabe standardmäßig 503 (config.SPRACHEINGABE_AKTIV).
 //  2) Die Sprachsteuerung im Kochmodus nutzt die Web Speech API, die es in der Android-
 //     WebView der Capacitor-App nicht gibt – dort lief sie immer in die Fehlermeldung
 //     „Spracherkennung wird von diesem Browser nicht unterstützt".
-// Vorlesen (SpeechSynthesis) bleibt an: das funktioniert überall und kostet nichts.
+// Vorlesen (SpeechSynthesis) bleibt an: das funktioniert überall.
 export const SPRACHE_AKTIV = false
 
 export function getVorratAktiv() {

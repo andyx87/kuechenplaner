@@ -1,14 +1,5 @@
 SET search_path TO koch, public;
 
--- Plattform-weite Einstellungen (nur Super-Admin änderbar), eine Zeile.
-CREATE TABLE IF NOT EXISTS plattform_einstellung (
-  id                 int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-  abo_grund_cents    int NOT NULL DEFAULT 300,
-  abo_mitglied_cents int NOT NULL DEFAULT 150,
-  api_markup_prozent numeric(6,2) NOT NULL DEFAULT 25
-);
-INSERT INTO plattform_einstellung (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-
 -- Einladungen (Main-User lädt Familienmitglieder ins eigene Konto), RLS-isoliert.
 CREATE TABLE IF NOT EXISTS einladung (
   id             bigserial PRIMARY KEY,

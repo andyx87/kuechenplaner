@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '../api.js'
 import { Icon } from '../icons.jsx'
 
-// Backoffice: Beta-Bugreports ansehen und auf erledigt setzen.
+// Backoffice: Bugreports ansehen und auf erledigt setzen.
 export default function AdminBugreports({ notify }) {
   const [list, setList] = useState(null)
   const [nurOffen, setNurOffen] = useState(true)

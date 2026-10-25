@@ -144,7 +144,7 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
       const frisch = await api.rezept(detail.id)
       setDetail(frisch)
       notify(r?.angepasst ? 'An deine Küche angepasst' : 'Bereits passend – nichts anzupassen')
-    } catch (e) { if (e?.status !== 402) notify(e.message || 'Anpassen fehlgeschlagen', 'err') }
+    } catch (e) { notify(e.message || 'Anpassen fehlgeschlagen', 'err') }
     finally { setAnpassBusy(false) }
   }
 
@@ -156,7 +156,7 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
       setList((l) => l.map((x) => (x.id === r.id ? { ...x, geraete_abgestimmt: true } : x)))
       setKiTreffer((t) => t && t.map((x) => (x.id === r.id ? { ...x, geraete_abgestimmt: true } : x)))
       notify(res?.angepasst ? 'An deine Küche angepasst' : 'Bereits passend – nichts anzupassen')
-    } catch (e) { if (e?.status !== 402) notify(e.message || 'Anpassen fehlgeschlagen', 'err') }
+    } catch (e) { notify(e.message || 'Anpassen fehlgeschlagen', 'err') }
     finally { setAnpassKarteBusy(null) }
   }
   const [vorratCheck, setVorratCheck] = useState(null)
@@ -261,7 +261,7 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
     if (wunsch.length < 2) return
     setSuchBusy(true)
     try {
-      // Lexikalische Suche im Backend – kein KI-Aufruf, kein Kontingent-Verbrauch.
+      // Lexikalische Suche im Backend – kein KI-Aufruf.
       const res = await api.rezeptSuche(wunsch, ansicht === 'eigene')
       setSuchTreffer(res.treffer || [])
       setSuchAktivQuery(wunsch)
@@ -307,9 +307,9 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
         return
       }
       notify(`„${r.name}" übernommen – wird an deine Geräte angepasst …`)
-      // An die eigenen Küchengeräte anpassen (KI). Bei Limit zeigt die App den 402-Dialog.
-      try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch (e) { if (e?.status !== 402) { /* trotzdem importiert */ } }
-      // Hatte die Vorlage ein Bild, wird es mitkopiert (kein Kontingent-Verbrauch).
+      // An die eigenen Küchengeräte anpassen (KI). Fehler sind unkritisch – importiert ist es.
+      try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch { /* trotzdem importiert */ }
+      // Hatte die Vorlage ein Bild, wird es mitkopiert (keine neue Bildgenerierung).
       // Nur ohne Bild wird gefragt, ob eines erzeugt werden soll.
       if (neu?.bild_uebernommen) {
         setBildBump((b) => b + 1)   // Thumbnails zeigen das übernommene Bild sofort
@@ -317,7 +317,7 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
         const wantBild = await importBildEntscheidung()
         if (wantBild) {
           try { await api.rezeptBildGenerieren(neu.id); setBildBump((b) => b + 1) }
-          catch (e) { if (e?.status !== 402) notify('Bild erzeugen fehlgeschlagen', 'err') }
+          catch { notify('Bild erzeugen fehlgeschlagen', 'err') }
         }
       }
       notify(`„${r.name}" ist in deiner Bibliothek`)
@@ -359,17 +359,17 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
         const neu = res.rezept
         notify(`„${neu.name}" importiert`)
         setLinkOffen(false); setLinkUrl(''); setLinkDateien([]); setAnsicht('eigene'); lade('')
-        // An die eigenen Geräte anpassen (KI). Bei Limit zeigt die App den 402-Dialog.
-        try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch (e) { if (e?.status !== 402) { /* trotzdem importiert */ } }
+        // An die eigenen Geräte anpassen (KI). Fehler sind unkritisch – importiert ist es.
+        try { await api.rezeptAnGeraeteAnpassen(neu.id) } catch { /* trotzdem importiert */ }
         const wantBild = await importBildEntscheidung()
-        if (wantBild) { try { await api.rezeptBildGenerieren(neu.id) } catch (e) { if (e?.status !== 402) notify('Bild erzeugen fehlgeschlagen', 'err') } }
+        if (wantBild) { try { await api.rezeptBildGenerieren(neu.id) } catch { notify('Bild erzeugen fehlgeschlagen', 'err') } }
         lade('')
       } else {
         // kein_rezept / keine_caption / nicht_unterstuetzt
         notify(res?.meldung || 'Kein Rezept erkannt – versuch einen klareren Screenshot oder den Text.', 'err')
       }
     } catch (e) {
-      if (e?.status !== 402) notify(e?.message || 'Import fehlgeschlagen', 'err')
+      notify(e?.message || 'Import fehlgeschlagen', 'err')
     } finally { setLinkBusy(false) }
   }
 
@@ -473,7 +473,7 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
       .map((k, i) => `${i + 1}. ${k.titel ? k.titel + ': ' : ''}${k.varianten?.[0]?.text || ''}`)
       .join('\n')
     const appUrl = WEB_URL
-    const pr = `\n\n— — —\nErstellt mit Topfplan: KI plant deine Woche, behält Vorrat & Angebote im Blick und erstellt Rezepte auf Knopfdruck.\nJetzt ausprobieren ${appUrl}`
+    const pr = `\n\n— — —\nGeteilt aus Topfplan${appUrl ? ' · ' + appUrl : ''}`
     const text = `${detail.name}\n${detail.beschreibung || ''}\n\nZutaten:\n${z}${schritte ? `\n\nZubereitung:\n${schritte}` : ''}${pr}`
     const shareData = { title: detail.name, text, url: appUrl }
     // Generiertes Bild mitteilen, wenn vorhanden und vom Gerät unterstützt.

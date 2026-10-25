@@ -11,8 +11,7 @@ import asyncio
 import json
 import uuid
 
-from . import billing, config, services
-from .chat import _c
+from . import ki, services
 from .db import acquire
 from .userauth import current_account
 
@@ -64,9 +63,8 @@ async def _adaptiere(detail: dict, geraete: list[str]) -> list | None:
         f"Aktuelle Zubereitung (JSON):\n{json.dumps(detail.get('zubereitung') or [], ensure_ascii=False)}\n\n"
         "Gib die angepasste Zubereitung als JSON zurueck."
     )
-    resp = await billing.complete(
-        _c(), "geraete-anpassung",
-        model=await billing.modell_fuer_konto(), max_tokens=8192, temperature=0.3,
+    resp = await ki.complete(
+        "geraete-anpassung", max_tokens=8192, temperature=0.3,
         messages=[{"role": "system", "content": _SYS}, {"role": "user", "content": user}],
     )
     text = (resp.choices[0].message.content or "").strip()
