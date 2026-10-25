@@ -28,6 +28,12 @@ Es gibt keine Abrechnung, keine Kontingente und keine Telemetrie.
   (Mandantentrennung per Postgres Row-Level-Security)
 - **Datenschutz-Werkzeuge:** Datenexport (JSON), Selbstlöschung von Konto oder Haushalt
 - **Admin-Bereich:** Nutzer, Zutaten-Kuratierung, Fehlermeldungen, Kennzahlen
+- **Connector für Claude (MCP mit OAuth 2.1):** Claude übernimmt im Chat Prospekte, Fotos
+  und Rezepttexte und speichert über typisierte Werkzeuge Angebote, Vorrat, Geräte, Rezepte,
+  Wochenplan und Kochmodus-Schritte; Topfplan rechnet Abgleich, Einkaufsliste und
+  Vorschläge. Dafür braucht die Instanz keinen eigenen KI-Schlüssel (Ausnahme:
+  Rezeptbilder). Zusätzlich persönliche Zugriffstokens, z. B. für Claude Code.
+  Siehe [`docs/mcp-connector.md`](docs/mcp-connector.md).
 
 Mit konfiguriertem KI-Anbieter zusätzlich:
 
@@ -51,7 +57,8 @@ git clone <repo-url> topfplan && cd topfplan
 cp .env.example .env
 # In .env mindestens setzen:
 #   POSTGRES_PASSWORD=<sicheres Passwort>
-#   DATABASE_URL=postgresql://koch:<dasselbe Passwort>@db:5432/koch
+#   APP_DB_PASSWORD=<weiteres sicheres Passwort>      # Rolle koch_app, kein Superuser
+#   DATABASE_URL=postgresql://koch_app:<APP_DB_PASSWORD>@db:5432/koch
 #   ADMIN_BOOTSTRAP_TOKEN=<einmaliger Zufallswert>   # erster Signup damit = Admin
 docker compose up -d --build
 ```
@@ -60,7 +67,9 @@ docker compose up -d --build
   angeben, dann wird dieses Konto Plattform-Admin.
 - API: <http://localhost:8095> (Health-Check `/health`, interaktive Doku `/docs`)
 
-`schema.sql` wird beim ersten Start (leeres Datenbank-Volume) automatisch eingespielt.
+`schema.sql` und `db/02-app-rolle.sh` werden beim ersten Start (leeres Datenbank-Volume)
+automatisch eingespielt. Die App verbindet sich als `koch_app` ohne Superuser-Rechte, weil
+ein Superuser die Row-Level-Security und damit die Haushaltstrennung umgehen würde.
 `docker compose down -v` setzt die Datenbank zurück.
 
 Für den Betrieb im Internet gehört ein Reverse-Proxy mit HTTPS davor (z. B. Caddy, Traefik,
@@ -85,14 +94,14 @@ Erläuterung stehen in [`.env.example`](.env.example) bzw. `app/config.py`.
 
 | Variable | Zweck |
 |---|---|
-| `POSTGRES_PASSWORD`, `DATABASE_URL`, `DB_SCHEMA` | Datenbank (Pflicht) |
+| `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `DATABASE_URL`, `DB_SCHEMA` | Datenbank (Pflicht) |
 | `APP_BASE_URL` | öffentliche URL der Web-App (Links in E-Mails) |
 | `ADMIN_BOOTSTRAP_TOKEN` | macht den ersten Signup mit diesem Token zum Plattform-Admin |
 | `CORS_ORIGINS`, `TRUSTED_PROXY_HOPS` | Herkunft der Web-App, Anzahl vertrauenswürdiger Proxys (Client-IP für Rate-Limits) |
 | `RESEND_API_KEY`, `MAIL_FROM`, `OPERATOR_NAME`, `SUPPORT_EMAIL` | E-Mail-Versand (optional; ohne Key werden Mails nur geloggt) |
 | `KALENDER_TOKEN`, `WEB_BASE_URL` | ICS-Speiseplan-Feed (optional) |
 | `KI_*` | KI-Anbieter (optional, s. u.) |
-| `MCP_ENABLED` | experimenteller MCP-Endpunkt ohne Auth – nur im vertrauenswürdigen LAN |
+| `MCP_ENABLED`, `PUBLIC_URL`, `OAUTH_*` | MCP-Connector mit OAuth 2.1 (Standard: an), öffentliche HTTPS-Adresse, Redirect-/Token-Einstellungen |
 | `SENTRY_DSN` | Fehler-Monitoring (optional) |
 
 Frontend-Build-Variablen (`VITE_*`, u. a. Betreiberangaben fürs Impressum) stehen in
@@ -139,17 +148,24 @@ deinen Datenschutzanforderungen.
 
 ### Claude und andere MCP-Clients
 
-Geplant ist ein MCP-Connector (mit OAuth und Mandantentrennung), über den Claude oder
-andere MCP-Clients Topfplan steuern können: Die KI-Arbeit passiert dann im Chat, Topfplan
-speichert und rechnet. Den gibt es **noch nicht**. Der vorhandene experimentelle
-Endpunkt `/mcp` (`MCP_ENABLED=1`) hat keine Authentifizierung und ist nur für ein
-vertrauenswürdiges lokales Netz gedacht.
+Unter `https://<deine-instanz>/mcp` läuft ein MCP-Server (Streamable HTTP). Claude bindet ihn
+als eigenen Connector ein: In Claude *Customize → Connectors → Add custom connector*, die
+URL eintragen, in Topfplan anmelden und zustimmen. Topfplan ist dabei selbst der
+OAuth-Server (Dynamic Client Registration, PKCE, Refresh-Rotation, Widerruf); jedes Token
+gilt nur für einen Nutzer und dessen Haushalt. Claude Code kann alternativ ein persönliches
+Zugriffstoken aus den Einstellungen nutzen.
+
+Voraussetzung: Die Instanz ist per HTTPS aus dem Internet erreichbar, denn die Aufrufe
+kommen von Anthropics Servern. Einrichtung, Werkzeugliste, Beispiel-Prompts und Grenzen
+(Claude kann Dateien nicht an Werkzeuge übergeben, Fotos und PDFs liest Claude selbst):
+[`docs/mcp-connector.md`](docs/mcp-connector.md).
 
 ### Datenbank
 
 - `schema.sql`: vollständiges Schema für frische Installationen (Schema `koch`,
   Mandantentrennung per Row-Level-Security).
 - `migration_*.sql`: historische, inkrementelle Migrationen für ältere Datenbanken.
+  `migration_mcp_oauth.sql` ergänzt die Tabellen für den MCP-Connector.
   `migration_ohne_abrechnung.sql` entfernt Abrechnungsreste aus Datenbanken, die mit dem
   früheren Schema angelegt wurden; frische Installationen brauchen sie nicht.
 
@@ -171,9 +187,14 @@ app/        Backend: FastAPI + asyncpg
   ki/            KI-Anbieter-Abstraktion (Text/Vision, Bild, Transkription)
   chat.py, vision.py, guided.py, rezept_link.py, angebote_import.py, ...  KI-Funktionen
   pdf.py         PDF-Rendering und Text (pypdfium2)
-  mcp_server.py  experimenteller MCP-Endpunkt (standardmäßig aus)
+  mcp_server.py  MCP-Werkzeuge und -Prompts (Connector für Claude)
+  mcp_dienste.py Batch/Vorschau/Idempotenz-Logik der Werkzeuge
+  oauth.py       OAuth-2.1-Server, persönliche Zugriffstokens; mcp_auth.py setzt den Haushalt je Aufruf
+  schemas.py     Pydantic-Modelle der Werkzeug-Eingaben
 brand/      Platzhalter-Icons und deren Generator
 tests/      Backend-Tests (laufen ohne Datenbank und ohne Netz)
+tests_db/   Integrationstests gegen Postgres (RLS, OAuth-Ablauf, MCP-Werkzeuge)
+docs/       Connector-Anleitung
 ```
 
 ## Tests
@@ -181,6 +202,8 @@ tests/      Backend-Tests (laufen ohne Datenbank und ohne Netz)
 ```bash
 pip install -r app/requirements.txt pytest pytest-asyncio
 python -m pytest -q tests
+# Integrationstests: brauchen ein WEGWERF-Postgres 16 (Schema koch wird neu angelegt)
+TEST_DATABASE_URL_ADMIN=postgresql://koch:<pw>@localhost:5432/koch python -m pytest -q tests_db
 ```
 
 ## Persönliche Daten
@@ -204,7 +227,8 @@ License 1.1 ([`brand/OFL.txt`](brand/OFL.txt)).
 plan, shopping list and supermarket offers in one web app (PWA) that runs on your own
 server. There is no billing, no quota and no telemetry.
 
-- **Quick start:** `cp .env.example .env`, set `POSTGRES_PASSWORD`, `DATABASE_URL` and
+- **Quick start:** `cp .env.example .env`, set `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`,
+  `DATABASE_URL` (role `koch_app`, not a superuser, so row-level security applies) and
   `ADMIN_BOOTSTRAP_TOKEN`, then `docker compose up -d --build`. Web app on port 8096, API on
   8095. The first sign-up that provides the bootstrap token becomes the platform admin.
 - **AI is optional and bring-your-own-key:** set `KI_BASE_URL`, `KI_API_KEY` and
@@ -212,7 +236,12 @@ server. There is no billing, no quota and no telemetry.
   LiteLLM, Ollama, vLLM, …). Optional: `KI_MODEL_VISION`, `KI_MODEL_FLYER`,
   `KI_IMAGE_MODEL` (OpenAI images API) and `KI_TRANSCRIBE_MODEL` (Whisper-compatible).
   Without configuration all AI buttons are hidden and everything else keeps working.
-- **MCP connector for Claude:** planned, not available yet. The experimental `/mcp`
-  endpoint has no authentication and is for trusted LANs only.
+- **MCP connector for Claude:** `https://<your-host>/mcp` (Streamable HTTP) with a built-in
+  OAuth 2.1 server (dynamic client registration, PKCE S256, refresh-token rotation,
+  revocation) and personal access tokens. Add it in Claude as a custom connector; Claude
+  does the AI work (reading flyers, photos, recipes) and Topfplan stores structured data
+  and computes matching, shopping lists and suggestions. Needs public HTTPS. Claude cannot
+  pass uploaded files to tools, so it reads photos/PDFs itself. See
+  `docs/mcp-connector.md` (German).
 - **Licence:** GNU AGPL-3.0 (see `LICENSE`, `NOTICE`); bundled font under SIL OFL 1.1.
 - The UI and most code comments are in German.
