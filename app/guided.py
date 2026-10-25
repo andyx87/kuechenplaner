@@ -7,10 +7,12 @@ in BASIS-Portionen; das Frontend skaliert auf die Zielportionen.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 
 from . import ki, services
 from .db import acquire
+from .userauth import current_account
 
 
 
@@ -129,30 +131,78 @@ async def strukturiere(rezept: dict, varianten: list[int] | None) -> list[dict]:
     return _parse(resp.choices[0].message.content or "")
 
 
+def quelle_hash(rezept: dict, varianten: list[int] | None) -> str:
+    """Fingerabdruck der Zubereitung, aus der die Schritte stammen. Ändert sich das Rezept
+    (auch ein veröffentlichtes fremdes), passen gespeicherte Schritte nicht mehr."""
+    _sig, aktiv = _aktive_varianten(rezept, varianten)
+    basis = {
+        "aktiv": aktiv,
+        "anleitung": rezept.get("anleitung") if not any((k.get("text") or "").strip() for k in aktiv) else None,
+        "zutaten": [[z.get("zutat"), z.get("menge"), z.get("einheit")] for z in (rezept.get("zutaten") or [])],
+        "portionen": rezept.get("portionen"),
+    }
+    return hashlib.sha256(json.dumps(basis, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+
+
+async def schritte_laden(rezept: dict, varianten: list[int] | None) -> list[dict] | None:
+    """Gespeicherte Schritte des AKTIVEN Haushalts (RLS) für Rezept + Varianten, wenn sie zur
+    aktuellen Zubereitung passen. Der frühere rezeptweite Cache (rezepte.zubereitung_guided)
+    wird nur noch für EIGENE Rezepte gelesen."""
+    sig, _ = _aktive_varianten(rezept, varianten)
+    qh = quelle_hash(rezept, varianten)
+    async with acquire() as con:
+        try:
+            row = await con.fetchrow(
+                "SELECT schritte, quelle_hash FROM kochmodus_schritte WHERE rezept_id = $1 AND signatur = $2",
+                int(rezept["id"]), sig)
+        except Exception:  # Tabelle fehlt (Migration noch nicht gelaufen)
+            row = None
+        if row is not None and row["quelle_hash"] == qh and isinstance(row["schritte"], list) and row["schritte"]:
+            return row["schritte"]
+        # Altbestand: Cache-Spalte am Rezept – RLS (ohne bypass) liefert sie für fremde Rezepte
+        # nur lesend; genutzt wird sie ausschließlich für eigene Rezepte.
+        if rezept.get("account_id") is not None and rezept.get("account_id") == current_account.get():
+            cache = await con.fetchval("SELECT zubereitung_guided FROM rezepte WHERE id = $1", int(rezept["id"]))
+            if isinstance(cache, dict) and isinstance(cache.get(sig), list) and cache[sig]:
+                return cache[sig]
+    return None
+
+
+async def schritte_speichern(rezept: dict, varianten: list[int] | None, schritte: list[dict],
+                             quelle: str = "ki") -> str:
+    """Speichert Schritte NUR für den aktiven Haushalt (Tabelle mit RLS). Fremde,
+    veröffentlichte Rezepte bleiben unberührt. Gibt die Signatur zurück."""
+    sig, _ = _aktive_varianten(rezept, varianten)
+    async with acquire() as con:
+        await con.execute(
+            """INSERT INTO kochmodus_schritte (rezept_id, signatur, quelle_hash, schritte, quelle)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (account_id, rezept_id, signatur) DO UPDATE
+                 SET quelle_hash = EXCLUDED.quelle_hash, schritte = EXCLUDED.schritte,
+                     quelle = EXCLUDED.quelle, aktualisiert = now()""",
+            int(rezept["id"]), sig, quelle_hash(rezept, varianten), schritte, quelle)
+    return sig
+
+
 async def get_guided(rezept_id: int, varianten: list[int] | None = None, force: bool = False) -> dict:
     """Liefert die strukturierten Schritte für die gewählte Varianten-Kombination.
-    Cache je Signatur am Rezept (global, da rezept-intrinsisch). Erzeugt per KI bei Bedarf."""
+    Gespeichert je Haushalt + Signatur (kochmodus_schritte). Erzeugt per KI bei Bedarf."""
     rezept = await services.get_rezept(rezept_id)
     if not rezept:
         return {"error": "Rezept nicht gefunden"}
     sig, _ = _aktive_varianten(rezept, varianten)
     if not force:
-        async with acquire(bypass=True) as con:
-            cache = await con.fetchval("SELECT zubereitung_guided FROM rezepte WHERE id = $1", int(rezept_id))
-        if isinstance(cache, dict) and isinstance(cache.get(sig), list) and cache[sig]:
+        schritte = await schritte_laden(rezept, varianten)
+        if schritte:
             return {"rezept_id": int(rezept_id), "signatur": sig, "portionen": rezept.get("portionen") or 4,
-                    "schritte": cache[sig], "cached": True}
+                    "schritte": schritte, "cached": True}
     schritte = await strukturiere(rezept, varianten)
     if not schritte:
         return {"error": "Konnte die Zubereitung nicht in Schritte zerlegen."}
     try:
-        async with acquire(bypass=True) as con:
-            await con.execute(
-                "UPDATE rezepte SET zubereitung_guided = "
-                "coalesce(zubereitung_guided, '{}'::jsonb) || jsonb_build_object($2, $3::jsonb) "
-                "WHERE id = $1", int(rezept_id), sig, json.dumps(schritte))
+        await schritte_speichern(rezept, varianten, schritte, quelle="ki")
     except Exception:
-        pass  # Cache ist optional – Schritte trotzdem liefern
+        pass  # Speichern ist optional – Schritte trotzdem liefern
     return {"rezept_id": int(rezept_id), "signatur": sig, "portionen": rezept.get("portionen") or 4,
             "schritte": schritte, "cached": False}
 

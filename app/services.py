@@ -110,15 +110,19 @@ def _name_match(master: str, text: str) -> bool:
     return False
 
 
-async def _ensure_zutat(con, name: str, einheit: str | None = None,
-                        kategorie: str | None = None) -> int:
-    nm = name.strip()
+async def _finde_zutat(con, name: str) -> tuple[int, str, str] | None:
+    """Sucht eine passende Zutat OHNE anzulegen -> (id, name, treffer) oder None.
+    treffer: 'exakt' (gleicher Name), 'normalisiert' (Umlaut/Klammern), 'aehnlich'
+    (Plural/Kopfwort) – dieselbe Logik wie beim Anlegen (_ensure_zutat)."""
+    nm = (name or "").strip()
+    if not nm:
+        return None
     # 1) Exakter Name – globale Master-Zutaten zuerst (so matchen generierte Rezepte
     #    direkt auf die geteilte Master-DB), sonst eigene.
     row = await con.fetchrow(
-        "SELECT id FROM zutaten WHERE lower(name) = lower($1) ORDER BY account_id NULLS FIRST LIMIT 1", nm)
+        "SELECT id, name FROM zutaten WHERE lower(name) = lower($1) ORDER BY account_id NULLS FIRST LIMIT 1", nm)
     if row:
-        return row["id"]
+        return row["id"], row["name"], "exakt"
     # 2) Kein exakter Treffer -> unter den GLOBALEN Master-Zutaten suchen.
     #    a) Umlaut-/klammer-normalisierter Exakt-Treffer ('Olivenoel' == 'Olivenöl').
     #    b) sonst semantisch (Plural/Suffix, z.B. 'Tomate'->'Tomaten'); konservativer
@@ -128,11 +132,20 @@ async def _ensure_zutat(con, name: str, einheit: str | None = None,
         "SELECT id, name FROM zutaten WHERE account_id IS NULL AND kanonische_zutat_id IS NULL")
     exakt = [r for r in gmaster if _normalize_zutat(r["name"]) == norm]
     if exakt:
-        return exakt[0]["id"]
+        return exakt[0]["id"], exakt[0]["name"], "normalisiert"
     treffer = [r for r in gmaster if _zutat_namensmatch(nm, r["name"] or "")]
     if treffer:
         treffer.sort(key=lambda r: (abs(len(r["name"]) - len(nm)), len(r["name"])))
-        return treffer[0]["id"]
+        return treffer[0]["id"], treffer[0]["name"], "aehnlich"
+    return None
+
+
+async def _ensure_zutat(con, name: str, einheit: str | None = None,
+                        kategorie: str | None = None) -> int:
+    nm = name.strip()
+    gefunden = await _finde_zutat(con, nm)
+    if gefunden:
+        return gefunden[0]
     # 3) Nicht vorhanden -> neu anlegen (eigenes Konto, als Master; account_id via Default).
     row = await con.fetchrow(
         "INSERT INTO zutaten (name, standard_einheit, kategorie) VALUES ($1, $2, $3) RETURNING id",
@@ -1462,6 +1475,13 @@ async def update_rezept(rezept_id: int, name: str, beschreibung: str | None = No
             if r is None:
                 return None
             rid = r["id"]
+            # Strukturierte Kochmodus-Schritte gehören zur alten Zubereitung → verwerfen.
+            await con.execute("UPDATE rezepte SET zubereitung_guided = NULL WHERE id = $1", rid)
+            try:
+                async with con.transaction():
+                    await con.execute("DELETE FROM kochmodus_schritte WHERE rezept_id = $1", rid)
+            except Exception:  # Tabelle fehlt (Migration noch nicht gelaufen)
+                pass
             # Zutaten komplett ersetzen
             await con.execute("DELETE FROM rezept_zutaten WHERE rezept_id = $1", rid)
             for z in (zutaten or []):
@@ -2754,7 +2774,7 @@ def _wochenende_zeitraum(gb, tage):
     return (ende - timedelta(days=back)).isoformat(), ende.isoformat()
 
 
-async def import_angebote(eintraege: list[dict]) -> dict:
+async def import_angebote(eintraege: list[dict], nur_konto: bool = False) -> dict:
     """Importiert Angebote eines Prospekts und ERGÄNZT sie (kein Ersetzen mehr):
     bestehende Angebote eines Markts bleiben erhalten, neue Artikel kommen hinzu.
     Exakte Dubletten (gleicher Markt, Name, Zeitraum im selben Scope) werden
@@ -2764,8 +2784,15 @@ async def import_angebote(eintraege: list[dict]) -> dict:
         return {"importiert": 0, "uebersprungen": 0}
     from .userauth import current_account, current_user, ist_super_admin
     uid = current_user.get()
-    global_admin = uid is None or await ist_super_admin(uid)
-    acc = current_account.get() or 1
+    acc = current_account.get()
+    if nur_konto:
+        # MCP & Co.: immer in den Haushalt des Aufrufers, nie global.
+        if acc is None:
+            return {"error": "Kein Haushalt im Kontext."}
+        global_admin = False
+    else:
+        global_admin = uid is None or await ist_super_admin(uid)
+        acc = acc or 1
     count = 0
     skip = 0
     async with acquire(bypass=global_admin) as con:
@@ -2904,6 +2931,7 @@ async def delete_expired_angebote() -> dict:
 # Reihenfolge: Kind-Tabellen vor Eltern; `zutaten` zuletzt (RESTRICT durch vorrat/
 # rezept_zutaten). `person_notiz` cascadet über person.
 _ACCOUNT_TABELLEN = [
+    "kochmodus_schritte", "mcp_idempotenz",
     "personen_heute", "person_abwesenheit_regel",
     "geraete_heute", "geraete_heute_stand", "rezept_geraete", "rezept_zutaten",
     "bewertung", "essensplan", "einkauf_extra", "einkaufstag_haendler", "einkaufstag",
@@ -2918,6 +2946,9 @@ async def _delete_account_data(con, acc: int) -> None:
     for t in _ACCOUNT_TABELLEN:
         await con.execute(f"DELETE FROM {t} WHERE account_id = $1", acc)
     await con.execute("DELETE FROM angebote WHERE account_id = $1", acc)
+    # MCP-Zugänge des Haushalts (Tokens hängen per CASCADE an den Grants).
+    await con.execute("DELETE FROM api_token WHERE account_id = $1", acc)
+    await con.execute("DELETE FROM oauth_grant WHERE account_id = $1", acc)
     await con.execute("DELETE FROM account_mitglied WHERE account_id = $1", acc)
     await con.execute("DELETE FROM account WHERE id = $1", acc)
 
@@ -2990,6 +3021,8 @@ async def loesche_eigenes_konto(modus: str = "selbst") -> dict:
             # Nur sich selbst entfernen.
             await con.execute(
                 "DELETE FROM account_mitglied WHERE account_id=$1 AND user_id=$2", acc, uid)
+            await con.execute("DELETE FROM api_token WHERE account_id=$1 AND user_id=$2", acc, uid)
+            await con.execute("DELETE FROM oauth_grant WHERE account_id=$1 AND user_id=$2", acc, uid)
             if ist_owner:
                 await con.execute(
                     "UPDATE account_mitglied SET rolle='owner' WHERE account_id=$1 AND user_id=$2",
