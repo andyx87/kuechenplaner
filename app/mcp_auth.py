@@ -1,6 +1,6 @@
 """Mandantenkontext pro MCP-Aufruf.
 
-Die Bearer-Prüfung selbst macht FastMCP mit `oauth.TopfplanOAuth.load_access_token`
+Die Bearer-Prüfung selbst macht FastMCP mit `oauth.KüchenplanerOAuth.load_access_token`
 (OAuth-Access-Token oder persönliches Zugriffstoken). Diese Middleware übernimmt aus dem
 geprüften Token Nutzer und Haushalt in die ContextVars, aus denen `db.acquire()` das
 Postgres-RLS-Konto setzt. Ohne gültiges Token gibt es keinen Kontext → RLS sieht nichts.

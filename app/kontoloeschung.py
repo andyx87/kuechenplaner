@@ -37,7 +37,7 @@ log = logging.getLogger("koch")
 TOKEN_GUELTIG_STUNDEN = 1
 
 _HINWEIS_NEUTRAL = (
-    "Falls zu dieser E-Mail-Adresse ein Topfplan-Konto besteht, haben wir dir einen "
+    "Falls zu dieser E-Mail-Adresse ein Küchenplaner-Konto besteht, haben wir dir einen "
     "Bestätigungslink geschickt. Die Löschung wird erst ausgeführt, wenn du diesen "
     "Link anklickst. Der Link ist 1 Stunde gültig. Bitte prüfe auch den Spam-Ordner."
 )
@@ -154,6 +154,6 @@ async def bestaetigen(token: str) -> dict:
         "ok": True,
         "geloescht": True,
         # Bewusst neutral: bestätigt keine Konto-Details.
-        "hinweis": ("Dein Topfplan-Konto wurde gelöscht. Du erhältst eine Bestätigung "
+        "hinweis": ("Dein Küchenplaner-Konto wurde gelöscht. Du erhältst eine Bestätigung "
                     "per E-Mail."),
     }

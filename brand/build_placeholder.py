@@ -1,6 +1,6 @@
 """Erzeugt neutrale, textfreie Platzhalter-Icons (Topf-Symbol) für Web, PWA und Android.
 
-TODO: echtes Artwork/Logo für Topfplan entwerfen und diese Platzhalter ersetzen.
+TODO: echtes Artwork/Logo für Küchenplaner entwerfen und diese Platzhalter ersetzen.
 
 Aufruf aus dem Repo-Wurzelverzeichnis (benötigt Pillow):
     python brand/build_placeholder.py

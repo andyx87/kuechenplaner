@@ -1,6 +1,6 @@
 """OAuth 2.1 Authorization Server + persönliche Zugriffstokens für den MCP-Endpunkt.
 
-Topfplan ist selbst Authorization Server (Nutzer, Haushalte und Login gibt es schon).
+Küchenplaner ist selbst Authorization Server (Nutzer, Haushalte und Login gibt es schon).
 Die Protokoll-Endpunkte stellt FastMCP bzw. das MCP-SDK bereit (`OAuthProvider`):
 
   /.well-known/oauth-authorization-server   RFC 8414
@@ -121,7 +121,7 @@ def _loopback_gleich(a: str, b: str) -> bool:
             and (pa.path or "/") == (pb.path or "/") and pa.query == pb.query)
 
 
-class TopfplanClient(OAuthClientInformationFull):
+class KüchenplanerClient(OAuthClientInformationFull):
     """Client-Info mit portunabhängigem Loopback-Abgleich der Redirect-URI."""
 
     def validate_redirect_uri(self, redirect_uri: AnyUrl | None) -> AnyUrl:
@@ -134,12 +134,12 @@ class TopfplanClient(OAuthClientInformationFull):
         return super().validate_redirect_uri(redirect_uri)
 
 
-class TopfplanCode(AuthorizationCode):
+class KüchenplanerCode(AuthorizationCode):
     user_id: int
     account_id: int
 
 
-class TopfplanRefresh(RefreshToken):
+class KüchenplanerRefresh(RefreshToken):
     grant_id: int
 
 
@@ -154,7 +154,7 @@ def _access_token(token: str, *, client_id: str, scopes: list[str], expires_at: 
     )
 
 
-class TopfplanOAuth(OAuthProvider):
+class KüchenplanerOAuth(OAuthProvider):
     """OAuth-Provider für FastMCP, gespeichert in Postgres."""
 
     def __init__(self):
@@ -188,7 +188,7 @@ class TopfplanOAuth(OAuthProvider):
                 meta[k] = issuer + urlparse(meta[k]).path
         prm = {"resource": mcp_resource_url(), "authorization_servers": [issuer],
                "scopes_supported": list(SCOPES), "bearer_methods_supported": ["header"],
-               "resource_name": "Topfplan"}
+               "resource_name": "Küchenplaner"}
 
         def antwort(daten):
             async def handler(request):
@@ -222,7 +222,7 @@ class TopfplanOAuth(OAuthProvider):
         info = row["info"]
         if isinstance(info, str):
             info = json.loads(info)
-        return TopfplanClient.model_validate(info)
+        return KüchenplanerClient.model_validate(info)
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         uris = [str(u) for u in (client_info.redirect_uris or [])]
@@ -269,7 +269,7 @@ class TopfplanOAuth(OAuthProvider):
         return f"{config.APP_BASE_URL}/verbinden?anfrage={anfrage}"
 
     async def load_authorization_code(self, client: OAuthClientInformationFull,
-                                      authorization_code: str) -> TopfplanCode | None:
+                                      authorization_code: str) -> KüchenplanerCode | None:
         async with pool().acquire() as con:
             r = await con.fetchrow(
                 "SELECT * FROM oauth_code WHERE code_hash = $1 AND client_id = $2",
@@ -282,7 +282,7 @@ class TopfplanOAuth(OAuthProvider):
                     await con.execute("UPDATE oauth_grant SET widerrufen = now() "
                                       "WHERE id = $1 AND widerrufen IS NULL", r["grant_id"])
                 return None
-        return TopfplanCode(
+        return KüchenplanerCode(
             code=authorization_code, scopes=list(r["scopes"]), expires_at=r["ablauf"].timestamp(),
             client_id=r["client_id"], code_challenge=r["code_challenge"],
             redirect_uri=AnyUrl(r["redirect_uri"]), redirect_uri_provided_explicitly=r["redirect_explizit"],
@@ -290,7 +290,7 @@ class TopfplanOAuth(OAuthProvider):
             user_id=r["user_id"], account_id=r["account_id"])
 
     async def exchange_authorization_code(self, client: OAuthClientInformationFull,
-                                          authorization_code: TopfplanCode) -> OAuthToken:
+                                          authorization_code: KüchenplanerCode) -> OAuthToken:
         async with pool().acquire() as con:
             async with con.transaction():
                 ok = await con.fetchval(
@@ -312,7 +312,7 @@ class TopfplanOAuth(OAuthProvider):
     # ---------- Refresh (mit Rotation + Wiederverwendungs-Erkennung) ----------
 
     async def load_refresh_token(self, client: OAuthClientInformationFull,
-                                 refresh_token: str) -> TopfplanRefresh | None:
+                                 refresh_token: str) -> KüchenplanerRefresh | None:
         if not refresh_token.startswith(PRAEFIX_REFRESH):
             return None
         async with pool().acquire() as con:
@@ -328,13 +328,13 @@ class TopfplanOAuth(OAuthProvider):
                 await con.execute("UPDATE oauth_grant SET widerrufen = now() WHERE id = $1", r["grant_id"])
                 log.warning("OAuth: Refresh-Token wiederverwendet, Grant %s widerrufen", r["grant_id"])
                 return None
-        return TopfplanRefresh(
+        return KüchenplanerRefresh(
             token=refresh_token, client_id=r["client_id"], scopes=list(r["scopes"]),
             expires_at=int(r["ablauf"].timestamp()), resource=r["resource"],
             subject=str(r["user_id"]), grant_id=r["grant_id"])
 
     async def exchange_refresh_token(self, client: OAuthClientInformationFull,
-                                     refresh_token: TopfplanRefresh, scopes: list[str]) -> OAuthToken:
+                                     refresh_token: KüchenplanerRefresh, scopes: list[str]) -> OAuthToken:
         async with pool().acquire() as con:
             async with con.transaction():
                 ok = await con.fetchval(

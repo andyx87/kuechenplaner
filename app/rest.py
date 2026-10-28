@@ -327,7 +327,7 @@ async def konto_export(ctx=Depends(auth)):
     return Response(
         content=json.dumps(data, ensure_ascii=False, indent=2),
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=topfplan-datenexport.json"},
+        headers={"Content-Disposition": "attachment; filename=kuechenplaner-datenexport.json"},
     )
 
 

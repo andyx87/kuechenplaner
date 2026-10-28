@@ -93,7 +93,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
 
         {step === 0 && (
           <div className="space-y-3">
-            <h3 className="inline-flex items-center gap-1.5 font-dish text-4xl leading-tight text-ink">Willkommen bei Topfplan! <Icon name="hand" size={20} /></h3>
+            <h3 className="inline-flex items-center gap-1.5 font-dish text-4xl leading-tight text-ink">Willkommen bei Küchenplaner! <Icon name="hand" size={20} /></h3>
             <p className="text-sm text-muted">In wenigen Schritten ist alles startklar: wer mitisst, welche Küchengeräte ihr habt und ob du den Vorrat pflegen möchtest. Danach siehst du, welche optionalen KI-Funktionen auf diesem Server verfügbar sind.</p>
             <p className="inline-flex items-center gap-1 text-xs text-muted2">Du kannst jederzeit überspringen und später in den <Icon name="settings" size={16} /> Einstellungen erneut starten.</p>
           </div>
@@ -178,7 +178,7 @@ export default function Onboarding({ onClose, notify, vorratAktiv, onVorratChang
           <div className="space-y-3">
             <h3 className="font-display text-xl">KI-Funktionen (optional)</h3>
             <p className="text-sm text-muted">
-              Topfplan funktioniert vollständig ohne KI. KI-Funktionen sind optional und nur
+              Küchenplaner funktioniert vollständig ohne KI. KI-Funktionen sind optional und nur
               verfügbar, wenn der Betreiber dieses Servers einen KI-Anbieter eingerichtet hat.
             </p>
             {ki.irgendwas ? (

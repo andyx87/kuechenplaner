@@ -477,7 +477,7 @@ export default function Rezepte({ notify, openRezeptId, clearOpen, defaultPortio
       .map((k, i) => `${i + 1}. ${k.titel ? k.titel + ': ' : ''}${k.varianten?.[0]?.text || ''}`)
       .join('\n')
     const appUrl = WEB_URL
-    const pr = `\n\n— — —\nGeteilt aus Topfplan${appUrl ? ' · ' + appUrl : ''}`
+    const pr = `\n\n— — —\nGeteilt aus Küchenplaner${appUrl ? ' · ' + appUrl : ''}`
     const text = `${detail.name}\n${detail.beschreibung || ''}\n\nZutaten:\n${z}${schritte ? `\n\nZubereitung:\n${schritte}` : ''}${pr}`
     const shareData = { title: detail.name, text, url: appUrl }
     // Generiertes Bild mitteilen, wenn vorhanden und vom Gerät unterstützt.

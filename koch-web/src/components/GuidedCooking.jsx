@@ -455,7 +455,7 @@ export default function GuidedCooking({ detail, portionen, heuteNamen, onClose, 
         <div className="border-t border-line bg-card/95 px-4 py-3 backdrop-blur">
           {(antwort || frageBusy) && (
             <p className={`mb-2 rounded-2xl bg-terracotta/10 p-3 text-sm text-ink/80 ${frageBusy ? 'gc-pulse' : ''}`}>
-              {frageBusy ? 'Topfplan denkt nach …' : antwort}
+              {frageBusy ? 'Küchenplaner denkt nach …' : antwort}
             </p>
           )}
           <div className="flex gap-2">

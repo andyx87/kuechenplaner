@@ -9,7 +9,7 @@ DB_SCHEMA = os.environ.get("DB_SCHEMA", "koch")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 # Absender für System-Mails (Reset/Bestätigung/Einladung). Kundenkommunikation/Kontakt
 # laeuft ueber die Kontaktadresse aus SUPPORT_EMAIL (Footer/Impressum).
-MAIL_FROM = os.environ.get("MAIL_FROM", "Topfplan <no-reply@example.com>")
+MAIL_FROM = os.environ.get("MAIL_FROM", "Küchenplaner <no-reply@example.com>")
 # Basis-URL für Links in E-Mails (Einladung, Passwort-Reset, Bestätigung).
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8096").rstrip("/")
 

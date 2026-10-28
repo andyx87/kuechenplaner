@@ -45,7 +45,7 @@ export default function ClaudeVerbindungen({ notify }) {
       <p className="inline-flex items-center gap-1 text-sm font-semibold"><Icon name="bot" size={18} /> Claude &amp; MCP</p>
       <p className="text-sm text-ink/60">
         In Claude unter „Connectors → Eigenen Connector hinzufügen“ diese Adresse eintragen. Claude übernimmt die
-        KI-Arbeit, Topfplan speichert die Ergebnisse.
+        KI-Arbeit, Küchenplaner speichert die Ergebnisse.
       </p>
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded-lg bg-ink/5 px-2 py-1.5 text-xs">{daten.mcp_url}</code>
@@ -81,7 +81,7 @@ export default function ClaudeVerbindungen({ notify }) {
           <div className="mt-2 space-y-2 rounded-lg bg-ink/5 p-2 text-sm">
             <p className="font-semibold">Token „{neu.name}“ – wird nur jetzt angezeigt:</p>
             <code className="block break-all text-xs">{neu.token}</code>
-            <p className="text-xs text-ink/60">Claude Code: <code className="break-all">claude mcp add --transport http topfplan {daten.mcp_url} --header "Authorization: Bearer {neu.token}"</code></p>
+            <p className="text-xs text-ink/60">Claude Code: <code className="break-all">claude mcp add --transport http kuechenplaner {daten.mcp_url} --header "Authorization: Bearer {neu.token}"</code></p>
             <div className="flex gap-2">
               <Button onClick={() => kopieren(neu.token)}>Token kopieren</Button>
               <Button variant="ghost" onClick={() => setNeu(null)}>Fertig</Button>

@@ -33,14 +33,14 @@ def test_redirect_policy(monkeypatch):
 
 def test_loopback_portunabhaengig():
     from pydantic import AnyUrl
-    c = oauth.TopfplanClient(client_id="x", redirect_uris=[AnyUrl("http://localhost:1234/callback")])
+    c = oauth.KüchenplanerClient(client_id="x", redirect_uris=[AnyUrl("http://localhost:1234/callback")])
     assert str(c.validate_redirect_uri(AnyUrl("http://localhost:5555/callback"))).startswith("http://localhost:5555")
     from mcp.shared.auth import InvalidRedirectUriError
     with pytest.raises(InvalidRedirectUriError):
         c.validate_redirect_uri(AnyUrl("http://localhost:5555/anders"))
     with pytest.raises(InvalidRedirectUriError):
         c.validate_redirect_uri(AnyUrl("http://127.0.0.1:5555/callback"))
-    h = oauth.TopfplanClient(client_id="y", redirect_uris=[AnyUrl("https://claude.ai/api/mcp/auth_callback")])
+    h = oauth.KüchenplanerClient(client_id="y", redirect_uris=[AnyUrl("https://claude.ai/api/mcp/auth_callback")])
     with pytest.raises(InvalidRedirectUriError):
         h.validate_redirect_uri(AnyUrl("https://claude.ai:8443/api/mcp/auth_callback"))
 

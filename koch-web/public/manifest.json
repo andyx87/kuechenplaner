@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Topfplan",
-  "short_name": "Topfplan",
-  "description": "Topfplan – dein KI-Küchenassistent: Rezepte, Planung, Vorrat & Angebote.",
+  "name": "Küchenplaner",
+  "short_name": "Küchenplaner",
+  "description": "Küchenplaner – dein KI-Küchenassistent: Rezepte, Planung, Vorrat & Angebote.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

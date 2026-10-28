@@ -1,13 +1,15 @@
-# Topfplan
+# Küchenplaner (Arbeitstitel)
 
-Topfplan ist ein selbst gehosteter Küchenplaner für Haushalte: Vorrat, Rezepte,
+„Küchenplaner" ist ein Arbeitstitel – der endgültige Projektname ist noch offen. Die App
+ist ein selbst gehosteter Küchenplaner für Haushalte: Vorrat, Rezepte,
 Wochenplan, Einkaufsliste und Supermarkt-Angebote an einem Ort – als Web-App (PWA), die
 du auf deinem eigenen Server betreibst. KI-Funktionen sind optional und laufen mit
 **deinem eigenen Schlüssel** bei einem Anbieter deiner Wahl (oder lokal, z. B. mit Ollama).
 Es gibt keine Abrechnung, keine Kontingente und keine Telemetrie.
 
-> Status: frühe Open-Source-Fassung. Icons, Splash- und Vorschaubilder sind neutrale
-> Platzhalter (`brand/build_placeholder.py`); echtes Artwork ist noch offen.
+> Status: frühe Open-Source-Fassung. Name (Arbeitstitel „Küchenplaner"), Icons, Splash- und
+> Vorschaubilder sind neutrale Platzhalter (`brand/build_placeholder.py`); echtes Artwork und
+> der endgültige Name sind noch offen.
 > Code und Kommentare sind überwiegend auf Deutsch.
 
 *English summary below.*
@@ -30,7 +32,7 @@ Es gibt keine Abrechnung, keine Kontingente und keine Telemetrie.
 - **Admin-Bereich:** Nutzer, Zutaten-Kuratierung, Fehlermeldungen, Kennzahlen
 - **Connector für Claude (MCP mit OAuth 2.1):** Claude übernimmt im Chat Prospekte, Fotos
   und Rezepttexte und speichert über typisierte Werkzeuge Angebote, Vorrat, Geräte, Rezepte,
-  Wochenplan und Kochmodus-Schritte; Topfplan rechnet Abgleich, Einkaufsliste und
+  Wochenplan und Kochmodus-Schritte; Küchenplaner rechnet Abgleich, Einkaufsliste und
   Vorschläge. Dafür braucht die Instanz keinen eigenen KI-Schlüssel (Ausnahme:
   Rezeptbilder). Zusätzlich persönliche Zugriffstokens, z. B. für Claude Code.
   Siehe [`docs/mcp-connector.md`](docs/mcp-connector.md).
@@ -53,7 +55,7 @@ Ohne KI-Anbieter blendet die Web-App alle KI-Knöpfe aus; der Rest funktioniert 
 Voraussetzung: Docker mit Compose-Plugin.
 
 ```bash
-git clone <repo-url> topfplan && cd topfplan
+git clone <repo-url> kuechenplaner && cd kuechenplaner
 cp .env.example .env
 # In .env mindestens setzen:
 #   POSTGRES_PASSWORD=<sicheres Passwort>
@@ -150,7 +152,7 @@ deinen Datenschutzanforderungen.
 
 Unter `https://<deine-instanz>/mcp` läuft ein MCP-Server (Streamable HTTP). Claude bindet ihn
 als eigenen Connector ein: In Claude *Customize → Connectors → Add custom connector*, die
-URL eintragen, in Topfplan anmelden und zustimmen. Topfplan ist dabei selbst der
+URL eintragen, in Küchenplaner anmelden und zustimmen. Küchenplaner ist dabei selbst der
 OAuth-Server (Dynamic Client Registration, PKCE, Refresh-Rotation, Widerruf); jedes Token
 gilt nur für einen Nutzer und dessen Haushalt. Claude Code kann alternativ ein persönliches
 Zugriffstoken aus den Einstellungen nutzen.
@@ -213,7 +215,7 @@ gehören in `.env` (wird nicht eingecheckt).
 
 ## Lizenz
 
-Topfplan steht unter der **GNU Affero General Public License v3.0** (siehe
+Küchenplaner steht unter der **GNU Affero General Public License v3.0** (siehe
 [`LICENSE`](LICENSE) und [`NOTICE`](NOTICE)). Wer eine veränderte Fassung als
 Netzwerkdienst anbietet, muss den Nutzern den Quellcode dieser Fassung zugänglich machen.
 Die mitgelieferte Schrift `brand/fraunces-display.ttf` steht unter der SIL Open Font
@@ -223,7 +225,7 @@ License 1.1 ([`brand/OFL.txt`](brand/OFL.txt)).
 
 ## English
 
-**Topfplan** is a self-hosted kitchen planner for households: pantry, recipes, weekly meal
+**Küchenplaner** is a self-hosted kitchen planner for households: pantry, recipes, weekly meal
 plan, shopping list and supermarket offers in one web app (PWA) that runs on your own
 server. There is no billing, no quota and no telemetry.
 
@@ -239,7 +241,7 @@ server. There is no billing, no quota and no telemetry.
 - **MCP connector for Claude:** `https://<your-host>/mcp` (Streamable HTTP) with a built-in
   OAuth 2.1 server (dynamic client registration, PKCE S256, refresh-token rotation,
   revocation) and personal access tokens. Add it in Claude as a custom connector; Claude
-  does the AI work (reading flyers, photos, recipes) and Topfplan stores structured data
+  does the AI work (reading flyers, photos, recipes) and Küchenplaner stores structured data
   and computes matching, shopping lists and suggestions. Needs public HTTPS. Claude cannot
   pass uploaded files to tools, so it reads photos/PDFs itself. See
   `docs/mcp-connector.md` (German).

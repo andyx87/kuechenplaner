@@ -76,7 +76,7 @@ export function LogoMark({ size = 40, className = '' }) {
     <span
       className={`login-emblem inline-flex shrink-0 items-center justify-center ${className}`}
       style={{ width: size, height: size, borderRadius: Math.round(size * 0.26) }}
-      role="img" aria-label="Topfplan"
+      role="img" aria-label="Küchenplaner"
     >
       <EmblemSvg size={Math.round(size * 0.62)} />
     </span>
@@ -89,7 +89,7 @@ export function Logo({ variant = 'emblem', className = '' }) {
     <div className={`flex flex-col items-center gap-3 ${className}`}>
       <LogoMark size={84} />
       <div className="text-center">
-        <div className="topfplan-wortmarke text-4xl leading-none">Topfplan</div>
+        <div className="kuechenplaner-wortmarke text-4xl leading-none">Küchenplaner</div>
         {variant === 'full' && <div className="label-mono mt-2 text-terracotta">Genuss mit Verstand</div>}
       </div>
     </div>

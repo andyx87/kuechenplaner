@@ -1,4 +1,4 @@
-package org.topfplan.app;
+package org.kuechenplaner.app;
 
 import com.getcapacitor.BridgeActivity;
 

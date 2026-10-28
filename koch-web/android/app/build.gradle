@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "org.topfplan.app"
+    namespace = "org.kuechenplaner.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId = "org.topfplan.app"
+        applicationId = "org.kuechenplaner.app"
         minSdkVersion = rootProject.ext.minSdkVersion
         targetSdkVersion = rootProject.ext.targetSdkVersion
         versionCode = Integer.parseInt(System.getenv("ANDROID_VERSION_CODE") ?: "1")

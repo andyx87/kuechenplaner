@@ -96,7 +96,7 @@ export default function Login({ onAuthed }) {
           <div className="flex items-center gap-5">
             <EmblemKachel large />
             <div>
-              <div className="topfplan-wortmarke text-5xl">Topfplan</div>
+              <div className="kuechenplaner-wortmarke text-5xl">Küchenplaner</div>
               <div className="label-mono mt-2 text-terracotta">Genuss mit Verstand</div>
             </div>
           </div>
@@ -119,7 +119,7 @@ export default function Login({ onAuthed }) {
         {/* Marken-Kopf (Mobil) */}
         <div className="mb-8 flex flex-col items-center text-center lg:hidden">
           <EmblemKachel />
-          <div className="topfplan-wortmarke mt-5 text-3xl">Topfplan</div>
+          <div className="kuechenplaner-wortmarke mt-5 text-3xl">Küchenplaner</div>
           <div className="label-mono mt-1.5 text-terracotta">Genuss mit Verstand</div>
         </div>
 

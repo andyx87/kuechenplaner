@@ -40,7 +40,7 @@ function VorlagenHinweis() {
     <div className="rounded-xl border border-terracotta/40 bg-terracotta/10 p-3 text-sm text-terracotta-deep">
       <p className="font-semibold">Hinweis: Mustertext für Betreiber</p>
       <p className="mt-1">
-        Dieser Text ist eine allgemeine Vorlage der Open-Source-Software „Topfplan" und keine
+        Dieser Text ist eine allgemeine Vorlage der Open-Source-Software „Küchenplaner" und keine
         Rechtsberatung. Der Betreiber dieser Instanz muss ihn an seinen Betrieb anpassen
         (Hosting, E-Mail-Versand, KI-Anbieter, Kontaktdaten) und rechtlich prüfen lassen.
         {!BETREIBER_KONFIGURIERT && ' Die Betreiberangaben sind noch nicht konfiguriert (VITE_IMPRESSUM_* setzen).'}
@@ -79,7 +79,7 @@ const DOKUMENTE = {
         </Abschnitt>
         <Abschnitt titel="Software">
           <p>
-            Diese Instanz nutzt die Open-Source-Software „Topfplan". Betrieben wird sie
+            Diese Instanz nutzt die Open-Source-Software „Küchenplaner". Betrieben wird sie
             eigenverantwortlich von dem oben genannten Betreiber; die Entwickler der
             Software sind nicht Anbieter dieser Instanz.
           </p>
@@ -94,7 +94,7 @@ const DOKUMENTE = {
         <Abschnitt titel="1. Verantwortlicher">
           <p>
             Verantwortlich für die Verarbeitung personenbezogener Daten im Rahmen dieser
-            Instanz der App „Topfplan" (nachfolgend „App") ist:
+            Instanz der App „Küchenplaner" (nachfolgend „App") ist:
           </p>
           <Anschrift />
           <p>
@@ -273,7 +273,7 @@ const DOKUMENTE = {
         <Abschnitt titel="1. Geltungsbereich & Betreiber">
           <p>
             Diese Nutzungsbedingungen gelten für die Nutzung dieser Instanz der
-            Web-Anwendung „Topfplan" (nachfolgend „App"). Betreiber ist {BETREIBER.name},
+            Web-Anwendung „Küchenplaner" (nachfolgend „App"). Betreiber ist {BETREIBER.name},
             {' '}{BETREIBER.ort} (vollständige Anschrift siehe Impressum), E-Mail:
             {' '}{BETREIBER.email} (nachfolgend „Betreiber"). Mit der Registrierung
             erkennst du diese Bedingungen an.
@@ -282,7 +282,7 @@ const DOKUMENTE = {
 
         <Abschnitt titel="2. Leistungsbeschreibung">
           <p>
-            Topfplan ist ein Küchenassistent mit Rezeptverwaltung, Wochen- und
+            Küchenplaner ist ein Küchenassistent mit Rezeptverwaltung, Wochen- und
             Essensplanung, Vorrats- und Einkaufslistenverwaltung, Angebotsübersicht sowie
             einem Schritt-für-Schritt-Kochmodus. Sofern der Betreiber einen KI-Anbieter
             eingerichtet hat, stehen zusätzlich KI-gestützte Funktionen zur Verfügung.
@@ -417,7 +417,7 @@ export function RechtSeite({ doc, onClose }) {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <div className="topfplan-wortmarke text-3xl leading-none">Topfplan</div>
+            <div className="kuechenplaner-wortmarke text-3xl leading-none">Küchenplaner</div>
             <div className="label-mono mt-1.5 text-terracotta">Genuss mit Verstand</div>
           </div>
           {onClose && (

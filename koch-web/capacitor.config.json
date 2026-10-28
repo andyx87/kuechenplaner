@@ -1,6 +1,6 @@
 {
-  "appId": "org.topfplan.app",
-  "appName": "Topfplan",
+  "appId": "org.kuechenplaner.app",
+  "appName": "Küchenplaner",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

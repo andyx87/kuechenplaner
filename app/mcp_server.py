@@ -27,7 +27,7 @@ from .schemas import (AngeboteImport, AngebotPosten, Datum, EinkaufPosten, Gerae
 from .userauth import current_account
 
 INSTRUKTIONEN = """\
-Topfplan: Küchen-Assistent für einen Haushalt – Rezepte, Vorrat, Küchengeräte, Wochenplan,
+Küchenplaner: Küchen-Assistent für einen Haushalt – Rezepte, Vorrat, Küchengeräte, Wochenplan,
 Einkaufsliste, Supermarkt-Angebote und Kochmodus. (Kitchen assistant for one household.)
 
 Arbeitsteilung: DU liest Fotos, PDFs, Prospekte und Webseiten selbst und schickst nur
@@ -47,7 +47,7 @@ Ablauf-Regeln:
 - Daten (Datum) immer als YYYY-MM-DD; Zeitzone Europe/Berlin.
 """
 
-mcp = FastMCP("Topfplan", instructions=INSTRUKTIONEN, middleware=[HaushaltsKontext()])
+mcp = FastMCP("Küchenplaner", instructions=INSTRUKTIONEN, middleware=[HaushaltsKontext()])
 
 LESEN = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 SCHREIBEN = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
@@ -469,7 +469,7 @@ def _thumbnail(data_url: str) -> str | None:
 
 @mcp.prompt
 def prospekt_importieren(markt: str = "", link: str = "") -> str:
-    """Prospekt (Link oder hochgeladenes PDF) in Topfplan übernehmen."""
+    """Prospekt (Link oder hochgeladenes PDF) in Küchenplaner übernehmen."""
     return (f"Lies den Prospekt{' ' + link if link else ''}{' von ' + markt if markt else ''} vollständig "
             "(alle Seiten). Rufe angebote_schema auf, extrahiere jedes Angebot mit Name, Marke, Packungsgröße, "
             "Preis, Streichpreis, Grundpreis, Kategorie, Art und generischer master_zutat. Rufe "

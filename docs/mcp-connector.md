@@ -1,8 +1,8 @@
-# Topfplan als Connector in Claude
+# Küchenplaner als Connector in Claude
 
-Topfplan bringt einen MCP-Server mit. In Claude (claude.ai, Claude Desktop, Claude mobile,
+Küchenplaner bringt einen MCP-Server mit. In Claude (claude.ai, Claude Desktop, Claude mobile,
 Claude Code) eingebunden, übernimmt Claude die KI-Arbeit im Chat – Prospekte, Fotos und
-Rezepttexte lesen, Rezepte schreiben, Kochschritte strukturieren – und Topfplan speichert
+Rezepttexte lesen, Rezepte schreiben, Kochschritte strukturieren – und Küchenplaner speichert
 nur die strukturierten Ergebnisse und rechnet (Zutaten-Abgleich, Einkaufsliste,
 Vorschläge). Mit einem Claude-Abo braucht die Instanz dafür **keinen eigenen KI-Schlüssel**.
 Einzige Ausnahme ist die Bildgenerierung (`rezeptbild_erzeugen`), die den Bild-Anbieter des
@@ -12,11 +12,11 @@ Stand: 25.10.2026, fastmcp 4.1.3 / MCP-Python-SDK 2.3.0.
 
 ## 1. Was Claude verlangt (geprüft)
 
-| Anforderung | Umsetzung in Topfplan |
+| Anforderung | Umsetzung in Küchenplaner |
 |---|---|
 | Remote-Server per **Streamable HTTP** (Legacy-SSE wird noch unterstützt, aber abgekündigt) [1] | FastMCP `http_app(path="/mcp", stateless_http=True)` → `https://<host>/mcp` |
 | Öffentlich per **HTTPS** erreichbar; Aufrufe kommen aus Anthropics Infrastruktur (`160.79.104.0/21`), nicht vom Gerät [2] | Reverse-Proxy/Tunnel vor die Instanz, s. Abschnitt 2 |
-| **OAuth 2.0/2.1**, Claude folgt den MCP-Autorisierungsspezifikationen 2025-03-26, 2025-06-18 und 2025-11-25 [1][3] | Topfplan ist selbst Authorization Server (`app/oauth.py`) |
+| **OAuth 2.0/2.1**, Claude folgt den MCP-Autorisierungsspezifikationen 2025-03-26, 2025-06-18 und 2025-11-25 [1][3] | Küchenplaner ist selbst Authorization Server (`app/oauth.py`) |
 | `401` mit `WWW-Authenticate: Bearer resource_metadata="…"` startet die Anmeldung; Claude übernimmt `scope` aus dem Header [2][3] | FastMCP-Bearer-Middleware; Scopes `read write` im Header |
 | **Protected Resource Metadata** (RFC 9728), `resource` = exakt die eingetragene Server-URL, erster Eintrag in `authorization_servers` wird benutzt [2][3] | `/.well-known/oauth-protected-resource/mcp` (und Wurzelpfad als Fallback) |
 | **Authorization Server Metadata** (RFC 8414) [2][3] | `/.well-known/oauth-authorization-server`, Issuer = `PUBLIC_URL` |
@@ -44,7 +44,7 @@ Quellen:
 
 fastmcp 4.1.3 (`fastmcp.server.auth.OAuthProvider`) bringt mit dem MCP-SDK die Endpunkte
 `/authorize`, `/token`, `/register`, `/revoke`, die PKCE-Prüfung, die Bearer-Middleware mit
-`WWW-Authenticate` und `require_scopes` für einzelne Werkzeuge. Topfplan implementiert die
+`WWW-Authenticate` und `require_scopes` für einzelne Werkzeuge. Küchenplaner implementiert die
 Speicher-Schnittstelle in Postgres und ergänzt:
 
 - eigene Metadaten-Dokumente (Issuer ohne abschließenden Slash in RFC 8414 und 9728,
@@ -109,11 +109,11 @@ ein täglicher Job auf.
 ## 3. Connector in Claude hinzufügen
 
 **claude.ai / Claude Desktop / Mobile (Free, Pro, Max):** *Customize → Connectors → Add
-custom connector*, Name „Topfplan“, URL `https://kochen.example.org/mcp`. Bei der
+custom connector*, Name „Küchenplaner“, URL `https://kochen.example.org/mcp`. Bei der
 OAuth-Client-Auswahl *Register automatically* (DCR) wählen bzw. die Felder für Client-ID
 und Secret leer lassen. Free-Konten können einen eigenen Connector anlegen. Auf Team- und
 Enterprise-Plänen fügt ein Owner den Connector unter *Organization settings → Connectors*
-hinzu, danach verbindet jedes Mitglied sein eigenes Topfplan-Konto. [4]
+hinzu, danach verbindet jedes Mitglied sein eigenes Küchenplaner-Konto. [4]
 
 Beim Verbinden öffnet sich `https://kochen.example.org/verbinden?...`: Anmelden (falls
 nötig), Haushalt, anfragende App, Ziel-Host und Rechte prüfen, **Zulassen**. „Schreiben“
@@ -122,15 +122,15 @@ lässt sich abwählen – dann sieht Claude nur die lesenden Werkzeuge.
 **Claude Code** mit OAuth:
 
 ```bash
-claude mcp add --transport http topfplan https://kochen.example.org/mcp
-# danach in Claude Code: /mcp → topfplan → anmelden (Browser)
+claude mcp add --transport http kuechenplaner https://kochen.example.org/mcp
+# danach in Claude Code: /mcp → kuechenplaner → anmelden (Browser)
 ```
 
 **Claude Code** mit persönlichem Zugriffstoken (z. B. für `claude -p` ohne Browser):
-In Topfplan *Einstellungen → Claude & MCP → Token erstellen*, dann
+In Küchenplaner *Einstellungen → Claude & MCP → Token erstellen*, dann
 
 ```bash
-claude mcp add --transport http topfplan https://kochen.example.org/mcp \
+claude mcp add --transport http kuechenplaner https://kochen.example.org/mcp \
   --header "Authorization: Bearer tpp_…"
 ```
 
@@ -160,11 +160,11 @@ Fertige Abläufe als MCP-Prompts: `prospekt_importieren`, `vorrat_aus_foto`,
 ## 5. Beispiel-Prompts
 
 - *Prospekt:* „Hier ist der Prospekt von Supermarkt Musterstadt für nächste Woche
-  (PDF/Link). Übernimm alle Lebensmittel-Angebote in Topfplan – erst Vorschau zeigen.“
+  (PDF/Link). Übernimm alle Lebensmittel-Angebote in Küchenplaner – erst Vorschau zeigen.“
 - *Küchenfoto:* „Das ist mein Kühlschrank. Trag alles mit geschätzter Menge in den Vorrat
   ein, Lagerort Kühlschrank. Zeig mir vorher, was du neu anlegen würdest.“
 - *Geräte:* „Auf dem Foto siehst du meine Küche. Leg die Geräte an, die du erkennst.“
-- *Rezept:* „Speichere dieses Rezept (Link) in Topfplan, mit Varianten für meine Geräte.“
+- *Rezept:* „Speichere dieses Rezept (Link) in Küchenplaner, mit Varianten für meine Geräte.“
 - *Alle Rezepte aktualisieren:* „Ich habe jetzt eine Heißluftfritteuse. Passe alle meine
   Rezepte an meine Geräte an.“
 - *Vorschläge:* „Was kann ich heute mit meinem Vorrat und den heutigen Geräten kochen?“ /
@@ -181,7 +181,7 @@ Fertige Abläufe als MCP-Prompts: `prospekt_importieren`, `vorrat_aus_foto`,
   Binärdaten an ein MCP-Werkzeug weiterreichen. Fotos, Prospekte und PDFs liest Claude im
   Chat selbst und schickt nur die erkannten Daten. Die Produktausschnitte, die der
   serverseitige Prospekt-Import der Web-App erzeugt, gibt es auf diesem Weg nicht.
-- Kein serverseitiges Abrufen von Links durch Topfplan: Claude öffnet Links mit seinen
+- Kein serverseitiges Abrufen von Links durch Küchenplaner: Claude öffnet Links mit seinen
   eigenen Werkzeugen.
 - Ergebnisgröße: große Listen sind paginiert. Bei sehr großen Prospekten lieber pro
   Seitenbereich importieren (Dubletten werden übersprungen, Idempotenz-Schlüssel helfen bei

@@ -34,7 +34,7 @@ oauth_provider = None
 if config.MCP_ENABLED:
     from . import oauth
     from .mcp_server import mcp
-    oauth_provider = oauth.TopfplanOAuth()
+    oauth_provider = oauth.KüchenplanerOAuth()
     mcp.auth = oauth_provider
     mcp_app = mcp.http_app(path="/mcp", stateless_http=True)
     if not config.PUBLIC_URL.startswith("https://"):
@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI):
     await db.close()
 
 
-app = FastAPI(title="Topfplan", lifespan=lifespan)
+app = FastAPI(title="Küchenplaner", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

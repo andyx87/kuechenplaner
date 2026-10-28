@@ -119,7 +119,7 @@ export default function AuthGate() {
   if (zustand === 'offline') return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
       <p className="font-display text-2xl">Keine Verbindung</p>
-      <p className="max-w-xs text-sm text-muted">Topfplan ist gerade nicht erreichbar. Prüfe deine Internetverbindung und versuch es noch einmal.</p>
+      <p className="max-w-xs text-sm text-muted">Küchenplaner ist gerade nicht erreichbar. Prüfe deine Internetverbindung und versuch es noch einmal.</p>
       <Button onClick={pruefeSitzung}>Erneut versuchen</Button>
     </div>
   )

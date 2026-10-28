@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Topfplan</string>
-    <string name="title_activity_main">Topfplan</string>
-    <string name="package_name">org.topfplan.app</string>
-    <string name="custom_url_scheme">org.topfplan.app</string>
+    <string name="app_name">Küchenplaner</string>
+    <string name="title_activity_main">Küchenplaner</string>
+    <string name="package_name">org.kuechenplaner.app</string>
+    <string name="custom_url_scheme">org.kuechenplaner.app</string>
 </resources>
